@@ -37,7 +37,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M0.3** — Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
 - [x] **M0.4** — Express Cloud Function bootstrap, bundler & health smoke test
 - [x] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
-- [ ] **M0.6** — Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
+- [x] **M0.6** — Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
 - [ ] **M0.7** — GitHub Actions CI & CD workflows + local `ci:verify` script
 - [ ] **M0.8 `[HUMAN]`** — Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
 
@@ -138,7 +138,7 @@ pnpm hygiene:check
 **Goal:** Configure Firebase Emulators and enforce deny-all client security rules for Firestore and Cloud Storage so the API is the sole data access path.
 
 **Deliverables:**
-- `firebase.json` configuring `firestore`, `storage`, `functions` (Node 22 codebase pointing to `apps/api`), `hosting` (`apps/web/dist` with rewrites for `/api/**`, `/mcp`, `/.well-known/**` -> `api` function, and SPA fallback `**` -> `/index.html`), and `emulators` (deterministic ports: Firestore `8080`, Functions `5001`, Storage `9199`, Hosting `5000`, UI `4000`).
+- `firebase.json` configuring `firestore`, `storage`, `functions` (Node 22 codebase pointing to `apps/api`), `hosting` (`apps/web/dist` with rewrites for `/api/**`, `/mcp`, `/.well-known/**` -> `api` function, and SPA fallback `**` -> `/index.html`), and `emulators` (deterministic ports: Firestore `8080`, Functions `5001`, Storage `9199`, Hosting `5050` [avoids macOS ControlCenter AirPlay Receiver on `5000`], UI `4000`).
 - `.firebaserc.example` with `"default": "demo-agent-kanban"` (actual `.firebaserc` stays gitignored; all local/CI commands pass `--project demo-agent-kanban` explicitly).
 - `firebase/firestore.rules`: explicit `rules_version = '2';` with `match /{document=**} { allow read, write: if false; }`.
 - `firebase/storage.rules`: explicit `rules_version = '2';` with `match /{allPaths=**} { allow read, write: if false; }`.
@@ -220,7 +220,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M0.6: Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
+### - [x] Step M0.6: Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
 
 **Goal:** Stand up the React + Vite + Tailwind + TanStack Query + `vite-plugin-pwa` frontend, wire WorkOS AuthKit login (prod) and the Dev User Switcher (emulator), and prove end-to-end browser login through Firebase Hosting + Functions Emulators.
 
@@ -240,7 +240,7 @@ pnpm --filter @agent-kanban/api build
 firebase emulators:exec --project demo-agent-kanban --only hosting,functions,firestore "pnpm exec tsx scripts/seed-emulator.ts && pnpm test:e2e -- e2e/m0-auth.spec.ts"
 pnpm hygiene:check
 ```
-- Pass criteria: Web build outputs PWA bundle with manifest/SW; Playwright loads `http://127.0.0.1:5000`, verifies sign-in screen, signs in as Alex via Dev User Switcher, confirms `/api/me` renders `"Alex Rivera"`, signs out, and signs in as Sam.
+- Pass criteria: Web build outputs PWA bundle with manifest/SW; Playwright loads `http://127.0.0.1:5050`, verifies sign-in screen, signs in as Alex via Dev User Switcher, confirms `/api/me` renders `"Alex Rivera"`, signs out, and signs in as Sam.
 
 ---
 

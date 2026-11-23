@@ -36,7 +36,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.{js,mjs,ts}', 'apps/api/**/*.{js,mjs,ts}'],
+    files: [
+      'scripts/**/*.{js,mjs,ts}',
+      'apps/api/**/*.{js,mjs,ts}',
+      'apps/web/vite.config.ts',
+      'playwright.config.ts',
+      'e2e/**/*.ts',
+    ],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -44,7 +50,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx,js,jsx}'],
+    files: ['apps/web/src/**/*.{ts,tsx,js,jsx}'],
     languageOptions: {
       globals: {
         ...globals.browser,
