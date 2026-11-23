@@ -33,12 +33,23 @@ function isValidIanaTimezone(timeZone: string): boolean {
   }
 }
 
-function parseAuthMode(raw: string | undefined): AuthMode {
-  const normalized = optionalEnv(raw)?.toLowerCase() ?? 'workos';
-  if (normalized === 'workos' || normalized === 'emulator') {
-    return normalized;
+function parseAuthMode(
+  raw: string | undefined,
+  isEmulator: boolean,
+  workosJwksUrl: string | null,
+): AuthMode {
+  const explicit = optionalEnv(raw)?.toLowerCase();
+  if (explicit === undefined) {
+    // In local Firebase Functions Emulator, default to emulator auth mode when
+    // WorkOS JWKS is not configured so emulator test/dev workflows work without
+    // requiring untracked .env files. Outside the emulator, always fail-closed
+    // to 'workos'.
+    return isEmulator && workosJwksUrl === null ? 'emulator' : 'workos';
   }
-  throw new Error(`Invalid AUTH_MODE "${normalized}". Expected "workos" or "emulator".`);
+  if (explicit === 'workos' || explicit === 'emulator') {
+    return explicit;
+  }
+  throw new Error(`Invalid AUTH_MODE "${explicit}". Expected "workos" or "emulator".`);
 }
 
 function parseAutoArchiveDays(raw: string | undefined): number {
@@ -82,13 +93,14 @@ export function assertEmulatorAuthAllowed(
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const isEmulator = env.FUNCTIONS_EMULATOR === 'true';
   const isTest = env.NODE_ENV === 'test';
+  const workosJwksUrl = optionalEnv(env.WORKOS_JWKS_URL);
 
   const config: AppConfig = {
-    authMode: parseAuthMode(env.AUTH_MODE),
+    authMode: parseAuthMode(env.AUTH_MODE, isEmulator, workosJwksUrl),
     householdTimezone: parseHouseholdTimezone(env.HOUSEHOLD_TIMEZONE),
     autoArchiveDays: parseAutoArchiveDays(env.AUTO_ARCHIVE_DAYS),
     workosClientId: optionalEnv(env.WORKOS_CLIENT_ID),
-    workosJwksUrl: optionalEnv(env.WORKOS_JWKS_URL),
+    workosJwksUrl,
     workosIssuer: optionalEnv(env.WORKOS_ISSUER),
     webhookEncryptionKey: optionalEnv(env.WEBHOOK_ENCRYPTION_KEY),
     backupBucket: optionalEnv(env.BACKUP_BUCKET),

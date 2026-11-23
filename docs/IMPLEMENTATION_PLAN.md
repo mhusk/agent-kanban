@@ -36,7 +36,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M0.2** — Shared Zod schemas & domain types (`packages/shared`)
 - [x] **M0.3** — Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
 - [x] **M0.4** — Express Cloud Function bootstrap, bundler & health smoke test
-- [ ] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
+- [x] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
 - [ ] **M0.6** — Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
 - [ ] **M0.7** — GitHub Actions CI & CD workflows + local `ci:verify` script
 - [ ] **M0.8 `[HUMAN]`** — Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
@@ -185,7 +185,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M0.5: Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
+### - [x] Step M0.5: Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
 
 **Goal:** Implement the complete JWT verification pipeline supporting WorkOS AuthKit JWKS in production and a local RSA test keypair in emulator/test mode, enforce the Firestore user allowlist, and provide an idempotent fake-data emulator seeder.
 

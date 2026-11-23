@@ -17,12 +17,15 @@
     "ci:verify": "pnpm hygiene:check && pnpm lint && pnpm format:check && pnpm -r typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
+    "@agent-kanban/shared": "workspace:*",
     "@eslint/js": "^9.21.0",
     "@types/node": "^22.13.5",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.0.1",
+    "firebase-admin": "^13.10.0",
     "globals": "^16.0.0",
     "prettier": "^3.5.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.25.0",
     "vitest": "^3.0.7"

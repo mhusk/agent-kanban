@@ -9,7 +9,10 @@ import express, {
 } from 'express';
 import { APP_NAME, SHARED_VERSION } from '@agent-kanban/shared';
 import { ZodError, type ZodType, type ZodTypeDef } from 'zod';
+import { assertEmulatorAuthAllowed, getConfig, type AppConfig } from './config.js';
 import { AppError, parseWithSchema, type ErrorResponseBody } from './lib/errors.js';
+import { createDevAuthRouter } from './routes/devAuth.js';
+import { createUsersRouter } from './routes/users.js';
 
 export { AppError, parseWithSchema };
 export type { ErrorResponseBody };
@@ -153,7 +156,10 @@ export const errorHandler: ErrorRequestHandler = (
   res.status(500).json(body);
 };
 
-export function createApp(): Application {
+export function createApp(configOverride?: AppConfig): Application {
+  const config = configOverride ?? getConfig();
+  assertEmulatorAuthAllowed(config);
+
   const app = express();
 
   app.disable('x-powered-by');
@@ -168,6 +174,12 @@ export function createApp(): Application {
       version: SHARED_VERSION,
     });
   });
+
+  if (config.authMode === 'emulator') {
+    app.use('/api', createDevAuthRouter(config));
+  }
+
+  app.use('/api', createUsersRouter(configOverride));
 
   app.use((req: Request, _res: Response, next: NextFunction) => {
     next(new AppError(404, 'NOT_FOUND', `Route not found: ${req.method} ${req.path}`));
