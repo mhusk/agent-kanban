@@ -34,7 +34,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 ### Milestone 0: Monorepo, Tooling, Emulators, Auth & CI/CD
 - [x] **M0.1** — Monorepo workspace, TypeScript, lint/format, privacy hygiene check & package skeleton
 - [x] **M0.2** — Shared Zod schemas & domain types (`packages/shared`)
-- [ ] **M0.3** — Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
+- [x] **M0.3** — Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
 - [ ] **M0.4** — Express Cloud Function bootstrap, bundler & health smoke test
 - [ ] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
 - [ ] **M0.6** — Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
@@ -133,7 +133,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M0.3: Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
+### - [x] Step M0.3: Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
 
 **Goal:** Configure Firebase Emulators and enforce deny-all client security rules for Firestore and Cloud Storage so the API is the sole data access path.
 
