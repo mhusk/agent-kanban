@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.pnp
+.pnp.js
+
+# Environment files (never commit real env files)
+.env*
+!.env.example
+
+# Firebase project config & emulator artifacts
+.firebaserc
+!.firebaserc.example
+.firebase/
+emulator-data/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+pubsub-debug.log*
+storage-debug.log*
+
+# Local privacy hygiene denylist (owner-defined personal strings)
+.hygiene-denylist.local
+
+# Credentials, certificates & private keys
+*service-account*.json
+*firebase-adminsdk*.json
+*.pem
+*.key
+
+# Build outputs & caches
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Playwright artifacts
+playwright-report/
+test-results/
+
+# OS & editor files
+.DS_Store
+Thumbs.db

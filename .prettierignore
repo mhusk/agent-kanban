@@ -1,0 +1,12 @@
+dist/
+build/
+coverage/
+node_modules/
+.pnpm-store/
+pnpm-lock.yaml
+.firebase/
+emulator-data/
+playwright-report/
+test-results/
+docs/
+AGENTS.md

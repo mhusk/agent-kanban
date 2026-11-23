@@ -1,0 +1,30 @@
+{
+  "name": "agent-kanban",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit && pnpm -r typecheck",
+    "hygiene:check": "node scripts/check-hygiene.mjs",
+    "build": "pnpm -r build",
+    "test": "vitest run && pnpm -r --if-present test",
+    "ci:verify": "pnpm hygiene:check && pnpm lint && pnpm format:check && pnpm -r typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@types/node": "^22.13.5",
+    "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.0.1",
+    "globals": "^16.0.0",
+    "prettier": "^3.5.2",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.25.0",
+    "vitest": "^3.0.7"
+  }
+}
