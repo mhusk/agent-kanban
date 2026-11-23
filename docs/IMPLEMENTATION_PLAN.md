@@ -33,7 +33,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 
 ### Milestone 0: Monorepo, Tooling, Emulators, Auth & CI/CD
 - [x] **M0.1** — Monorepo workspace, TypeScript, lint/format, privacy hygiene check & package skeleton
-- [ ] **M0.2** — Shared Zod schemas & domain types (`packages/shared`)
+- [x] **M0.2** — Shared Zod schemas & domain types (`packages/shared`)
 - [ ] **M0.3** — Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
 - [ ] **M0.4** — Express Cloud Function bootstrap, bundler & health smoke test
 - [ ] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
@@ -107,7 +107,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M0.2: Shared Zod schemas & domain types (`packages/shared`)
+### - [x] Step M0.2: Shared Zod schemas & domain types (`packages/shared`)
 
 **Goal:** Define the canonical single-source-of-truth Zod schemas and inferred TypeScript types shared by the REST API, MCP server, and PWA.
 
