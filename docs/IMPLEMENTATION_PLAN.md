@@ -35,7 +35,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M0.1** — Monorepo workspace, TypeScript, lint/format, privacy hygiene check & package skeleton
 - [x] **M0.2** — Shared Zod schemas & domain types (`packages/shared`)
 - [x] **M0.3** — Firebase config, locked Firestore/Storage rules, indexes & Emulator tests
-- [ ] **M0.4** — Express Cloud Function bootstrap, bundler & health smoke test
+- [x] **M0.4** — Express Cloud Function bootstrap, bundler & health smoke test
 - [ ] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
 - [ ] **M0.6** — Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
 - [ ] **M0.7** — GitHub Actions CI & CD workflows + local `ci:verify` script
@@ -161,7 +161,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M0.4: Express Cloud Function bootstrap, bundler & health smoke test
+### - [x] Step M0.4: Express Cloud Function bootstrap, bundler & health smoke test
 
 **Goal:** Build the Express app hosted inside Firebase Cloud Functions v2 (`api`) with an `esbuild` bundle step that cleanly inlines `@agent-kanban/shared` for zero-friction Firebase deployment.
 
