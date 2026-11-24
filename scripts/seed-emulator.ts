@@ -296,11 +296,27 @@ function getEmulatorFirestore(): Firestore {
   return db;
 }
 
+async function clearFirestoreEmulator(emulatorHost: string, projectId: string): Promise<void> {
+  const url = `http://${emulatorHost}/emulator/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents`;
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) {
+    throw new Error(`Failed to clear Firestore emulator at ${url}: HTTP ${res.status}`);
+  }
+}
+
 async function main(): Promise<void> {
+  const shouldReset = process.argv.includes('--reset');
   const db = getEmulatorFirestore();
+  const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
+  const projectId = process.env.GCLOUD_PROJECT?.trim() || 'demo-agent-kanban';
+
+  if (shouldReset) {
+    await clearFirestoreEmulator(emulatorHost, projectId);
+  }
+
   const result = await seedEmulator(db);
   console.log(
-    `Seeded Firestore emulator (${process.env.FIRESTORE_EMULATOR_HOST}): ${result.usersSeeded} users, ${result.cardsSeeded} cards.`,
+    `Seeded Firestore emulator (${emulatorHost}${shouldReset ? ', reset' : ''}): ${result.usersSeeded} users, ${result.cardsSeeded} cards.`,
   );
 }
 

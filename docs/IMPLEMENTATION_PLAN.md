@@ -38,7 +38,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M0.4** — Express Cloud Function bootstrap, bundler & health smoke test
 - [x] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
 - [x] **M0.6** — Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
-- [ ] **M0.7** — GitHub Actions CI & CD workflows + local `ci:verify` script
+- [x] **M0.7** — GitHub Actions CI & CD workflows + local `ci:verify` script
 - [ ] **M0.8 `[HUMAN]`** — Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
 
 ### Milestone 1: Core Card API & Minimal Mobile PWA
@@ -244,7 +244,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M0.7: GitHub Actions CI & CD workflows + local `ci:verify` script
+### - [x] Step M0.7: GitHub Actions CI & CD workflows + local `ci:verify` script
 
 **Goal:** Automate full build, lint, typecheck, privacy hygiene, unit, rules, emulator API, and Playwright E2E verification on every push/PR, and automate Firebase deployment on `main`.
 

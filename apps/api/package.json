@@ -21,7 +21,8 @@
     "test": "vitest run src/__tests__",
     "test:rules": "vitest run tests/rules.test.ts",
     "test:smoke": "vitest run tests/health.test.ts",
-    "test:auth": "vitest run tests/auth.test.ts"
+    "test:auth": "vitest run tests/auth.test.ts",
+    "test:integration": "vitest run tests/ --exclude tests/rules.test.ts --no-file-parallelism"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",
