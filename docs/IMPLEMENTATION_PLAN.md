@@ -57,7 +57,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 ### Milestone 3: MCP Server, Filtered Webhooks & Scheduled Jobs
 - [x] **M3.1** — Shared handler layer, Stateless Streamable HTTP `/mcp` & RFC 9728 OAuth metadata
 - [x] **M3.2** — Event pipeline, agent loop suppression & 30-day polling fallback (`GET /api/events`)
-- [ ] **M3.3** — Filtered webhook subscriptions, AES-GCM encryption, `Bearer`/`HMAC` delivery & retries
+- [x] **M3.3** — Filtered webhook subscriptions, AES-GCM encryption, `Bearer`/`HMAC` delivery & retries
 - [ ] **M3.4** — Scheduled jobs (`due_soon`/`overdue`, 30-day auto-archive, cleanup, backup) & Settings webhooks view
 
 ### Milestone 4: File Uploads, PWA Polish & Production Readiness
@@ -645,7 +645,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M3.3: Filtered webhook subscriptions, AES-GCM encryption, `Bearer`/`HMAC` delivery & retries
+### - [x] Step M3.3: Filtered webhook subscriptions, AES-GCM encryption, `Bearer`/`HMAC` delivery & retries
 
 **Goal:** Implement user-owned webhook subscriptions with encrypted secrets, rich event filtering, signed deliveries, and Firestore-backed exponential backoff retries.
 

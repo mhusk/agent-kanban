@@ -11,7 +11,9 @@ import {
   NoteSchema,
   RecurrenceSchema,
   SHARED_VERSION,
+  SubscriptionFiltersSchema,
   TagSchema,
+  WebhookAuthTypeSchema,
 } from '@agent-kanban/shared';
 import { z } from 'zod';
 import {
@@ -45,6 +47,12 @@ import {
   smartQueryCardsHandler,
   workspaceSnapshotHandler,
 } from '../handlers/priorities.js';
+import {
+  createSubscriptionHandler,
+  deleteSubscriptionHandler,
+  listSubscriptionsHandler,
+  updateSubscriptionHandler,
+} from '../handlers/subscriptions.js';
 import { AppError } from '../lib/errors.js';
 import type { AuthContext } from '../types/express.js';
 
@@ -550,7 +558,7 @@ export function createMcpServer(
     async (args) => runTool(() => listEventsHandler(agentAuth(), args)),
   );
 
-  // 20. manage_subscriptions (completed in M3.3)
+  // 20. manage_subscriptions
   server.registerTool(
     'manage_subscriptions',
     {
@@ -558,17 +566,29 @@ export function createMcpServer(
       inputSchema: {
         action: z.enum(['list', 'create', 'update', 'delete']),
         subscriptionId: EntityIdSchema.optional(),
+        connectionId: EntityIdSchema.nullable().optional(),
+        webhookUrl: z.string().url().optional(),
+        authType: WebhookAuthTypeSchema.optional(),
+        secret: z.string().min(16).max(512).optional(),
+        filters: SubscriptionFiltersSchema.optional(),
+        active: z.boolean().optional(),
         agentName: z.string().trim().min(1).max(120).optional(),
       },
     },
-    async () =>
-      errorToolResult(
-        new AppError(
-          501,
-          'SUBSCRIPTIONS_NOT_ENABLED',
-          'Webhook subscriptions management is enabled in Step M3.3',
-        ),
-      ),
+    async ({ action, subscriptionId, agentName, ...rest }) =>
+      runTool(() => {
+        const auth = agentAuth(agentName);
+        switch (action) {
+          case 'list':
+            return listSubscriptionsHandler(auth);
+          case 'create':
+            return createSubscriptionHandler(auth, rest);
+          case 'update':
+            return updateSubscriptionHandler(auth, subscriptionId, rest);
+          case 'delete':
+            return deleteSubscriptionHandler(auth, subscriptionId);
+        }
+      }),
   );
 
   return server;

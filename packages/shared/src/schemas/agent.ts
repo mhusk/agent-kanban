@@ -66,6 +66,11 @@ export const SubscriptionSchema = z.object({
 });
 export type Subscription = z.infer<typeof SubscriptionSchema>;
 
+export const SubscriptionEmulatorSchema = SubscriptionSchema.extend({
+  webhookUrl: DevWebhookUrlSchema,
+});
+export type SubscriptionEmulator = z.infer<typeof SubscriptionEmulatorSchema>;
+
 export const CreateSubscriptionSchema = z.object({
   connectionId: EntityIdSchema.nullable().optional(),
   webhookUrl: HttpsUrlSchema,

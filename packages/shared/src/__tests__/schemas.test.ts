@@ -25,6 +25,7 @@ import {
   LinkAttachmentSchema,
   MAX_ATTACHMENT_SIZE_BYTES,
   RecurrenceSchema,
+  SubscriptionEmulatorSchema,
   SubscriptionSchema,
   UpdateCardInputSchema,
   UpdateSubscriptionSchema,
@@ -550,6 +551,30 @@ describe('Agent connection, Subscription & Event schemas', () => {
         filters: { eventTypes: ['card.created'] },
       }).success,
     ).toBe(true);
+
+    expect(
+      SubscriptionEmulatorSchema.safeParse({
+        id: 'sub_01',
+        ownerUserId: 'user_alex',
+        webhookUrl: 'http://localhost:4567/hook',
+        authType: 'bearer',
+        filters: { eventTypes: ['card.created'] },
+        createdAt: NOW,
+        updatedAt: NOW,
+      }).success,
+    ).toBe(true);
+
+    expect(
+      SubscriptionEmulatorSchema.safeParse({
+        id: 'sub_01',
+        ownerUserId: 'user_alex',
+        webhookUrl: 'http://hooks.example.test/hook',
+        authType: 'bearer',
+        filters: { eventTypes: ['card.created'] },
+        createdAt: NOW,
+        updatedAt: NOW,
+      }).success,
+    ).toBe(false);
 
     expect(
       CreateSubscriptionEmulatorSchema.safeParse({

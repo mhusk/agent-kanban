@@ -16,6 +16,7 @@ import { createCardsRouter } from './routes/cards.js';
 import { createDevAuthRouter } from './routes/devAuth.js';
 import { createEventsRouter } from './routes/events.js';
 import { createMcpRouter } from './routes/mcp.js';
+import { createSubscriptionsRouter } from './routes/subscriptions.js';
 import { createUsersRouter } from './routes/users.js';
 
 export { AppError, parseWithSchema };
@@ -187,6 +188,7 @@ export function createApp(configOverride?: AppConfig): Application {
   app.use('/api', createAgentConnectionsRouter(configOverride));
   app.use('/api', createCardsRouter(configOverride));
   app.use('/api', createEventsRouter(configOverride));
+  app.use('/api', createSubscriptionsRouter(configOverride));
   app.use(createMcpRouter(configOverride));
 
   app.use((req: Request, _res: Response, next: NextFunction) => {

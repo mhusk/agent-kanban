@@ -1,4 +1,4 @@
-import { getApp, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage, type Storage } from 'firebase-admin/storage';
 
@@ -11,8 +11,9 @@ let storageInstance: Storage | null = null;
  * FIREBASE_STORAGE_EMULATOR_HOST) and Cloud Functions production (ADC).
  */
 export function getFirebaseApp(): App {
-  if (getApps().length > 0) {
-    return getApp();
+  const existingDefault = getApps().find((app) => app.name === '[DEFAULT]');
+  if (existingDefault) {
+    return existingDefault;
   }
   return initializeApp();
 }
