@@ -178,7 +178,9 @@ export async function bulkUpdateCardsHandler(
           tags = tags.filter((tag) => !removeSet.has(tag));
         }
 
-        const dueChanged = update.due !== undefined && update.due !== existing.due;
+        const dueChanged =
+          (update.due !== undefined && update.due !== existing.due) ||
+          (update.dueHasTime !== undefined && update.dueHasTime !== existing.dueHasTime);
         const due = update.due !== undefined ? update.due : existing.due;
 
         const nextCard = CardSchema.parse({

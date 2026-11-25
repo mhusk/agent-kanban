@@ -6,6 +6,8 @@ import {
   ChecklistSchema,
   CommentSchema,
   LinkAttachmentSchema,
+  SubscriptionEmulatorSchema,
+  SubscriptionSchema,
   UserSchema,
   type Activity,
   type AgentConnection,
@@ -17,8 +19,8 @@ import {
   type CreateCardInput,
   type CreateChecklistInput,
   type CreateLinkAttachmentInput,
-  type CreateUserInput,
   type LinkAttachment,
+  type Subscription,
   type UpdateCardInput,
   type UpdateChecklistInput,
   type User,
@@ -499,7 +501,7 @@ export async function fetchCardActivity(
 
 export async function createHouseholdUser(
   getAccessToken: AccessTokenProvider,
-  payload: Partial<CreateUserInput> & { email: string; displayName: string; handle: string },
+  payload: { email: string; displayName: string; handle: string; role?: 'admin' | 'member' },
 ): Promise<User> {
   const data = await apiRequest<{ user: unknown }>('/api/admin/users', {
     method: 'POST',
@@ -565,6 +567,81 @@ export async function revokeAgentConnection(
     },
   );
   return AgentConnectionSchema.parse(data.connection);
+}
+
+const isEmulatorFrontend = import.meta.env.VITE_AUTH_MODE === 'emulator';
+
+function parseSubscriptionRecord(raw: unknown): Subscription {
+  return isEmulatorFrontend ? SubscriptionEmulatorSchema.parse(raw) : SubscriptionSchema.parse(raw);
+}
+
+export interface CreateSubscriptionRequest {
+  connectionId?: string | null;
+  webhookUrl: string;
+  authType: 'bearer' | 'hmac';
+  secret: string;
+  filters: Subscription['filters'];
+  active?: boolean;
+}
+
+export interface UpdateSubscriptionRequest {
+  webhookUrl?: string;
+  authType?: 'bearer' | 'hmac';
+  secret?: string;
+  filters?: Subscription['filters'];
+  active?: boolean;
+}
+
+export async function fetchSubscriptions(
+  getAccessToken: AccessTokenProvider,
+  signal?: AbortSignal,
+): Promise<Subscription[]> {
+  const data = await apiRequest<{ subscriptions: unknown[] }>('/api/subscriptions', {
+    getAccessToken,
+    signal,
+  });
+  return data.subscriptions.map(parseSubscriptionRecord);
+}
+
+export async function createSubscription(
+  getAccessToken: AccessTokenProvider,
+  payload: CreateSubscriptionRequest,
+): Promise<Subscription> {
+  const data = await apiRequest<{ subscription: unknown }>('/api/subscriptions', {
+    method: 'POST',
+    body: payload,
+    getAccessToken,
+  });
+  return parseSubscriptionRecord(data.subscription);
+}
+
+export async function updateSubscription(
+  getAccessToken: AccessTokenProvider,
+  subscriptionId: string,
+  payload: UpdateSubscriptionRequest,
+): Promise<Subscription> {
+  const data = await apiRequest<{ subscription: unknown }>(
+    `/api/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    {
+      method: 'PATCH',
+      body: payload,
+      getAccessToken,
+    },
+  );
+  return parseSubscriptionRecord(data.subscription);
+}
+
+export async function deleteSubscription(
+  getAccessToken: AccessTokenProvider,
+  subscriptionId: string,
+): Promise<{ deleted: true; id: string }> {
+  return apiRequest<{ deleted: true; id: string }>(
+    `/api/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    {
+      method: 'DELETE',
+      getAccessToken,
+    },
+  );
 }
 
 export interface DevTokenRequest {

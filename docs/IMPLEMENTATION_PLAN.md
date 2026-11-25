@@ -58,7 +58,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M3.1** — Shared handler layer, Stateless Streamable HTTP `/mcp` & RFC 9728 OAuth metadata
 - [x] **M3.2** — Event pipeline, agent loop suppression & 30-day polling fallback (`GET /api/events`)
 - [x] **M3.3** — Filtered webhook subscriptions, AES-GCM encryption, `Bearer`/`HMAC` delivery & retries
-- [ ] **M3.4** — Scheduled jobs (`due_soon`/`overdue`, 30-day auto-archive, cleanup, backup) & Settings webhooks view
+- [x] **M3.4** — Scheduled jobs (`due_soon`/`overdue`, 30-day auto-archive, cleanup, backup) & Settings webhooks view
 
 ### Milestone 4: File Uploads, PWA Polish & Production Readiness
 - [ ] **M4.1** — GCS signed-URL attachment API (upload/confirm/download/delete, 10 MB + MIME checks)
@@ -684,7 +684,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M3.4: Scheduled jobs (`due_soon`/`overdue`, 30-day auto-archive, cleanup, backup) & Settings webhooks view
+### - [x] Step M3.4: Scheduled jobs (`due_soon`/`overdue`, 30-day auto-archive, cleanup, backup) & Settings webhooks view
 
 **Goal:** Complete scheduled time-based event generation, housekeeping jobs, and visibility of webhook subscriptions in the PWA Settings screen.
 

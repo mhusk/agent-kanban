@@ -4,6 +4,8 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { EventSchema } from '@agent-kanban/shared';
 import { createApp } from './app.js';
 import { getConfig } from './config.js';
+import { runDailyMaintenance } from './jobs/dailyMaintenance.js';
+import { runDueScanner } from './jobs/dueScanner.js';
 import { dispatchEventWebhooks, processDueWebhookRetries } from './services/webhookDispatcher.js';
 
 // Validate environment configuration & strict emulator auth guard at startup.
@@ -50,5 +52,27 @@ export const retryWebhooks = onSchedule(
   },
   async () => {
     await processDueWebhookRetries(new Date());
+  },
+);
+
+export const scanDueCards = onSchedule(
+  {
+    schedule: 'every 15 minutes',
+    region: 'us-central1',
+    memory: '256MiB',
+  },
+  async () => {
+    await runDueScanner(new Date());
+  },
+);
+
+export const dailyMaintenance = onSchedule(
+  {
+    schedule: '0 8 * * *',
+    region: 'us-central1',
+    memory: '256MiB',
+  },
+  async () => {
+    await runDailyMaintenance(new Date());
   },
 );

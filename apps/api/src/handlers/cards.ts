@@ -605,7 +605,9 @@ export async function updateCardHandler(
       );
     }
 
-    const dueChanged = input.due !== undefined && input.due !== existing.due;
+    const dueChanged =
+      (input.due !== undefined && input.due !== existing.due) ||
+      (input.dueHasTime !== undefined && input.dueHasTime !== existing.dueHasTime);
     const due = input.due !== undefined ? input.due : existing.due;
     const trelloUrl = input.trelloUrl !== undefined ? input.trelloUrl : existing.trelloUrl;
     let trelloShortLink =
