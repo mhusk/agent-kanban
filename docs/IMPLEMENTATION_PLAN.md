@@ -51,7 +51,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 
 ### Milestone 2: Agent Connections & Prioritization API
 - [x] **M2.1** — User-owned Agent Connections, hashed API keys (`ak_...`) & `X-Agent-Name` attribution
-- [ ] **M2.2** — Bulk priority/field updates, smart queries & workspace snapshot
+- [x] **M2.2** — Bulk priority/field updates, smart queries & workspace snapshot
 - [ ] **M2.3** — PWA Settings: Agent Connection / API Key management & household roster
 
 ### Milestone 3: MCP Server, Filtered Webhooks & Scheduled Jobs
@@ -528,7 +528,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M2.2: Bulk priority/field updates, smart queries & workspace snapshot
+### - [x] Step M2.2: Bulk priority/field updates, smart queries & workspace snapshot
 
 **Goal:** Deliver the high-leverage agent endpoints that let a Chief of Staff agent reprioritize the household backlog and generate morning briefs in a single roundtrip.
 

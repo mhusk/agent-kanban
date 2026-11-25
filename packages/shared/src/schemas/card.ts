@@ -285,3 +285,12 @@ export const BulkCardUpdateSchema = z.object({
   note: NoteSchema.optional(),
 });
 export type BulkCardUpdate = z.infer<typeof BulkCardUpdateSchema>;
+
+export const SmartQueryTypeSchema = z.enum(['overdue_or_due_within_days', 'stale_in_todo_days']);
+export type SmartQueryType = z.infer<typeof SmartQueryTypeSchema>;
+
+export const SmartQueryInputSchema = z.object({
+  query: SmartQueryTypeSchema,
+  days: z.coerce.number().int().min(0).max(3650).optional(),
+});
+export type SmartQueryInput = z.infer<typeof SmartQueryInputSchema>;

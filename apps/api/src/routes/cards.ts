@@ -24,6 +24,12 @@ import {
   updateChecklistItemHandler,
 } from '../handlers/checklists.js';
 import { createCardCommentHandler, listCardCommentsHandler } from '../handlers/comments.js';
+import {
+  bulkUpdateCardsHandler,
+  bulkUpdatePrioritiesHandler,
+  smartQueryCardsHandler,
+  workspaceSnapshotHandler,
+} from '../handlers/priorities.js';
 import { AppError } from '../lib/errors.js';
 import { createAuthMiddleware } from '../middleware/auth.js';
 import { normalizeIdempotencyKey } from '../services/idempotency.js';
@@ -94,6 +100,72 @@ export function createCardsRouter(configOverride?: AppConfig): Router {
       }
     })();
   });
+
+  router.get('/cards/smart', requireAuth, (req: Request, res: Response, next: NextFunction) => {
+    void (async () => {
+      try {
+        const auth = requireReqAuth(req);
+        const householdTimezone = (configOverride ?? getConfig()).householdTimezone;
+        const result = await smartQueryCardsHandler(auth, req.query, { householdTimezone });
+        res.status(200).json(result);
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
+  router.patch(
+    '/cards/priorities',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const idempotencyKey = normalizeIdempotencyKey(req.header('idempotency-key'));
+          const result = await bulkUpdatePrioritiesHandler(auth, req.body, { idempotencyKey });
+          if (result.replayed) {
+            res.setHeader('X-Idempotent-Replay', 'true');
+          }
+          res.status(result.status).json(result.body);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.patch('/cards/bulk', requireAuth, (req: Request, res: Response, next: NextFunction) => {
+    void (async () => {
+      try {
+        const auth = requireReqAuth(req);
+        const idempotencyKey = normalizeIdempotencyKey(req.header('idempotency-key'));
+        const result = await bulkUpdateCardsHandler(auth, req.body, { idempotencyKey });
+        if (result.replayed) {
+          res.setHeader('X-Idempotent-Replay', 'true');
+        }
+        res.status(result.status).json(result.body);
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
+  router.get(
+    '/workspace/snapshot',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const householdTimezone = (configOverride ?? getConfig()).householdTimezone;
+          const result = await workspaceSnapshotHandler(auth, { householdTimezone });
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
 
   router.get('/cards/:id', requireAuth, (req: Request, res: Response, next: NextFunction) => {
     void (async () => {
