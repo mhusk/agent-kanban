@@ -10,6 +10,11 @@ import express, {
 import { APP_NAME, SHARED_VERSION } from '@agent-kanban/shared';
 import { ZodError, type ZodType, type ZodTypeDef } from 'zod';
 import { assertEmulatorAuthAllowed, getConfig, type AppConfig } from './config.js';
+import {
+  handleEmulatorStorageGet,
+  handleEmulatorStoragePut,
+  isStorageEmulatorTransferEnabled,
+} from './handlers/attachments.js';
 import { AppError, parseWithSchema, type ErrorResponseBody } from './lib/errors.js';
 import { createAgentConnectionsRouter } from './routes/agentConnections.js';
 import { createCardsRouter } from './routes/cards.js';
@@ -169,6 +174,20 @@ export function createApp(configOverride?: AppConfig): Application {
 
   app.disable('x-powered-by');
   app.use(requestIdMiddleware);
+
+  if (isStorageEmulatorTransferEnabled(config)) {
+    app.put(
+      '/api/emulator/storage',
+      express.raw({ type: '*/*', limit: '15mb' }),
+      (req: Request, res: Response, next: NextFunction) => {
+        void handleEmulatorStoragePut(req, res, configOverride).catch(next);
+      },
+    );
+    app.get('/api/emulator/storage', (req: Request, res: Response, next: NextFunction) => {
+      void handleEmulatorStorageGet(req, res, configOverride).catch(next);
+    });
+  }
+
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/api/health', (_req: Request, res: Response) => {

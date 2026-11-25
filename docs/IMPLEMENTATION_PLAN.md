@@ -61,7 +61,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M3.4** — Scheduled jobs (`due_soon`/`overdue`, 30-day auto-archive, cleanup, backup) & Settings webhooks view
 
 ### Milestone 4: File Uploads, PWA Polish & Production Readiness
-- [ ] **M4.1** — GCS signed-URL attachment API (upload/confirm/download/delete, 10 MB + MIME checks)
+- [x] **M4.1** — GCS signed-URL attachment API (upload/confirm/download/delete, 10 MB + MIME checks)
 - [ ] **M4.2** — PWA client-side image compression, photo/PDF upload & attachment gallery
 - [ ] **M4.3** — PWA installability, icons/manifest, offline banner, optimistic UX & accessibility polish
 - [ ] **M4.4** — Public `README.md`, self-hosting guide, prod smoke script & full regression verification
@@ -717,7 +717,7 @@ pnpm ci:verify
 
 ## Milestone 4: File Uploads, PWA Polish & Production Readiness
 
-### - [ ] Step M4.1: GCS signed-URL attachment API (upload/confirm/download/delete, 10 MB + MIME checks)
+### - [x] Step M4.1: GCS signed-URL attachment API (upload/confirm/download/delete, 10 MB + MIME checks)
 
 **Goal:** Enable secure image and PDF uploads up to 10 MB via API-minted short-lived Cloud Storage signed URLs (keeping direct Storage rules locked down).
 

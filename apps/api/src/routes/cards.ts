@@ -1,6 +1,14 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { getConfig, type AppConfig } from '../config.js';
 import {
+  confirmAttachmentUploadHandler,
+  createAttachmentUploadUrlHandler,
+  deleteCardAttachmentHandler,
+  getAttachmentDownloadUrlHandler,
+  listCardAttachmentsHandler,
+  resolveEmulatorApiBaseUrl,
+} from '../handlers/attachments.js';
+import {
   archiveCardHandler,
   changeCardStatusHandler,
   completeCardHandler,
@@ -461,6 +469,111 @@ export function createCardsRouter(configOverride?: AppConfig): Router {
       }
     })();
   });
+
+  router.post(
+    '/cards/:id/attachments/upload-url',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await createAttachmentUploadUrlHandler(auth, req.params.id, req.body, {
+            ...(configOverride ? { config: configOverride } : {}),
+            emulatorBaseUrl: resolveEmulatorApiBaseUrl(req),
+          });
+          res.status(201).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.post(
+    '/cards/:id/attachments/:attachmentId/confirm',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await confirmAttachmentUploadHandler(
+            auth,
+            req.params.id,
+            req.params.attachmentId,
+            configOverride ? { config: configOverride } : undefined,
+          );
+          res.status(201).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.get(
+    '/cards/:id/attachments',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await listCardAttachmentsHandler(
+            auth,
+            req.params.id,
+            configOverride ? { config: configOverride } : undefined,
+          );
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.get(
+    '/cards/:id/attachments/:attachmentId/download-url',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await getAttachmentDownloadUrlHandler(
+            auth,
+            req.params.id,
+            req.params.attachmentId,
+            {
+              ...(configOverride ? { config: configOverride } : {}),
+              emulatorBaseUrl: resolveEmulatorApiBaseUrl(req),
+            },
+          );
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.delete(
+    '/cards/:id/attachments/:attachmentId',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await deleteCardAttachmentHandler(
+            auth,
+            req.params.id,
+            req.params.attachmentId,
+            configOverride ? { config: configOverride } : undefined,
+          );
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
 
   return router;
 }
