@@ -1,5 +1,6 @@
 import {
   ActivitySchema,
+  AgentConnectionSchema,
   CardSchema,
   ChecklistItemSchema,
   ChecklistSchema,
@@ -7,6 +8,7 @@ import {
   LinkAttachmentSchema,
   UserSchema,
   type Activity,
+  type AgentConnection,
   type Card,
   type CardStatus,
   type Checklist,
@@ -15,6 +17,7 @@ import {
   type CreateCardInput,
   type CreateChecklistInput,
   type CreateLinkAttachmentInput,
+  type CreateUserInput,
   type LinkAttachment,
   type UpdateCardInput,
   type UpdateChecklistInput,
@@ -492,6 +495,76 @@ export async function fetchCardActivity(
     activity: ActivitySchema.array().parse(data.activity),
     nextCursor: data.nextCursor,
   };
+}
+
+export async function createHouseholdUser(
+  getAccessToken: AccessTokenProvider,
+  payload: Partial<CreateUserInput> & { email: string; displayName: string; handle: string },
+): Promise<User> {
+  const data = await apiRequest<{ user: unknown }>('/api/admin/users', {
+    method: 'POST',
+    body: payload,
+    getAccessToken,
+  });
+  return UserSchema.parse(data.user);
+}
+
+export async function fetchAgentConnections(
+  getAccessToken: AccessTokenProvider,
+  signal?: AbortSignal,
+): Promise<AgentConnection[]> {
+  const data = await apiRequest<{ connections: unknown }>('/api/agent-connections', {
+    getAccessToken,
+    signal,
+  });
+  return AgentConnectionSchema.array().parse(data.connections);
+}
+
+export async function createAgentConnection(
+  getAccessToken: AccessTokenProvider,
+  platform: string,
+): Promise<{ connection: AgentConnection; apiKey: string }> {
+  const data = await apiRequest<{ connection: unknown; apiKey: string }>('/api/agent-connections', {
+    method: 'POST',
+    body: { platform },
+    getAccessToken,
+  });
+  return {
+    connection: AgentConnectionSchema.parse(data.connection),
+    apiKey: data.apiKey,
+  };
+}
+
+export async function rotateAgentConnection(
+  getAccessToken: AccessTokenProvider,
+  connectionId: string,
+): Promise<{ connection: AgentConnection; apiKey: string }> {
+  const data = await apiRequest<{ connection: unknown; apiKey: string }>(
+    `/api/agent-connections/${encodeURIComponent(connectionId)}/rotate`,
+    {
+      method: 'POST',
+      body: {},
+      getAccessToken,
+    },
+  );
+  return {
+    connection: AgentConnectionSchema.parse(data.connection),
+    apiKey: data.apiKey,
+  };
+}
+
+export async function revokeAgentConnection(
+  getAccessToken: AccessTokenProvider,
+  connectionId: string,
+): Promise<AgentConnection> {
+  const data = await apiRequest<{ connection: unknown }>(
+    `/api/agent-connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: 'DELETE',
+      getAccessToken,
+    },
+  );
+  return AgentConnectionSchema.parse(data.connection);
 }
 
 export interface DevTokenRequest {

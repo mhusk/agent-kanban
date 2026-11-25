@@ -52,7 +52,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 ### Milestone 2: Agent Connections & Prioritization API
 - [x] **M2.1** — User-owned Agent Connections, hashed API keys (`ak_...`) & `X-Agent-Name` attribution
 - [x] **M2.2** — Bulk priority/field updates, smart queries & workspace snapshot
-- [ ] **M2.3** — PWA Settings: Agent Connection / API Key management & household roster
+- [x] **M2.3** — PWA Settings: Agent Connection / API Key management & household roster
 
 ### Milestone 3: MCP Server, Filtered Webhooks & Scheduled Jobs
 - [ ] **M3.1** — Shared handler layer, Stateless Streamable HTTP `/mcp` & RFC 9728 OAuth metadata
@@ -558,7 +558,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M2.3: PWA Settings — Agent Connection / API Key management & household roster
+### - [x] Step M2.3: PWA Settings — Agent Connection / API Key management & household roster
 
 **Goal:** Let household users manage their own agent API keys and view the household roster directly in the PWA Settings tab.
 
