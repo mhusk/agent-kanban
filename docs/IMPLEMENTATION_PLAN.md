@@ -39,7 +39,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M0.5** — Auth middleware (WorkOS JWKS + emulator RSA keypair), allowlist & seed script
 - [x] **M0.6** — Minimal PWA shell, Hosting rewrites, AuthKit client & Dev User Switcher
 - [x] **M0.7** — GitHub Actions CI & CD workflows + local `ci:verify` script
-- [ ] **M0.8 `[HUMAN]`** — Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
+- [x] **M0.8 `[HUMAN]`** — Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
 
 ### Milestone 1: Core Card API & Minimal Mobile PWA
 - [ ] **M1.1** — Shared helpers: search tokenizer, `@mention` parser, DST-aware due & recurrence engine
@@ -269,9 +269,11 @@ node -e "const fs=require('fs'); for (const f of ['.github/workflows/ci.yml','.g
 
 ---
 
-### - [ ] Step M0.8 `[HUMAN]`: Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
+### - [x] Step M0.8 `[HUMAN]`: Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
 
 > **AGENT STOP GATE:** Do not execute or skip this step. Present the checklist below to the repository owner and wait for confirmation.
+>
+> **Setup Guide & Gotchas:** See [`docs/DEPLOYMENT_SETUP.md`](DEPLOYMENT_SETUP.md) for detailed WorkOS AuthKit JWT template, multi-app `iss`/JWKS, CORS, GCP IAM, and bootstrap notes.
 
 **Manual Setup Checklist:**
 1. **Local Privacy Guard (Optional but Recommended):**
