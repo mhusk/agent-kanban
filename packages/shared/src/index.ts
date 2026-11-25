@@ -13,3 +13,7 @@ export * from './schemas/activity.js';
 export * from './schemas/comment.js';
 export * from './schemas/attachment.js';
 export * from './schemas/agent.js';
+export * from './utils/search.js';
+export * from './utils/mentions.js';
+export * from './utils/dates.js';
+export * from './utils/recurrence.js';

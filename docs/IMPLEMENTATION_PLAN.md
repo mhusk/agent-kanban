@@ -42,7 +42,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M0.8 `[HUMAN]`** — Provision Firebase project, WorkOS AuthKit, secrets & prod deploy
 
 ### Milestone 1: Core Card API & Minimal Mobile PWA
-- [ ] **M1.1** — Shared helpers: search tokenizer, `@mention` parser, DST-aware due & recurrence engine
+- [x] **M1.1** — Shared helpers: search tokenizer, `@mention` parser, DST-aware due & recurrence engine
 - [ ] **M1.2** — Core Card CRUD, visibility, status transitions, idempotency, `ifUpdatedAt` & activity log
 - [ ] **M1.3** — Checklists CRUD/toggle, link attachments & full-text token search
 - [ ] **M1.4** — Comments with `@mentions` & in-place recurring card resets
@@ -305,7 +305,7 @@ node -e "const fs=require('fs'); for (const f of ['.github/workflows/ci.yml','.g
 
 ## Milestone 1: Core Card API & Minimal Mobile PWA
 
-### - [ ] Step M1.1: Shared helpers — search tokenizer, `@mention` parser, DST-aware due & recurrence engine
+### - [x] Step M1.1: Shared helpers — search tokenizer, `@mention` parser, DST-aware due & recurrence engine
 
 **Goal:** Build and thoroughly unit-test all deterministic domain logic in `packages/shared` before wiring API routes.
 
