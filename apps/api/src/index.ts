@@ -1,3 +1,4 @@
+import { defineSecret } from 'firebase-functions/params';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -8,6 +9,8 @@ import { runDailyMaintenance } from './jobs/dailyMaintenance.js';
 import { runDueScanner } from './jobs/dueScanner.js';
 import { dispatchEventWebhooks, processDueWebhookRetries } from './services/webhookDispatcher.js';
 
+const webhookEncryptionKey = defineSecret('WEBHOOK_ENCRYPTION_KEY');
+
 // Validate environment configuration & strict emulator auth guard at startup.
 getConfig();
 
@@ -17,6 +20,7 @@ export const api = onRequest(
   {
     region: 'us-central1',
     memory: '512MiB',
+    secrets: [webhookEncryptionKey],
   },
   app,
 );
@@ -26,6 +30,7 @@ export const onEventCreated = onDocumentCreated(
     document: 'events/{eventId}',
     region: 'us-central1',
     memory: '256MiB',
+    secrets: [webhookEncryptionKey],
   },
   async (snapEvent) => {
     const rawData = snapEvent.data?.data();
@@ -49,6 +54,7 @@ export const retryWebhooks = onSchedule(
     schedule: 'every 1 minutes',
     region: 'us-central1',
     memory: '256MiB',
+    secrets: [webhookEncryptionKey],
   },
   async () => {
     await processDueWebhookRetries(new Date());

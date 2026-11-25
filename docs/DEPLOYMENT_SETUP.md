@@ -39,7 +39,27 @@ This guide captures the manual provisioning steps and real-world gotchas for dep
    - `Artifact Registry Administrator` (`roles/artifactregistry.admin`)
    - `Cloud Build Editor` (`roles/cloudbuild.builds.editor`)
    - `Service Usage Consumer` (`roles/serviceusage.serviceUsageConsumer`)
+   - `Secret Manager Admin` (`roles/secretmanager.admin`) *(allows CI `firebase deploy` to grant functions access to `WEBHOOK_ENCRYPTION_KEY`)*
 6. Generate a JSON key, store it **outside** the repository while configuring GitHub Secrets and bootstrapping users, and delete the local file once finished.
+7. Grant the Cloud Functions v2 runtime identity (your project's default Compute Engine service account) these roles in IAM:
+   - `Service Account Token Creator` (`roles/iam.serviceAccountTokenCreator`) — required for `getSignedUrl()` to sign GCS upload/download URLs on attachment endpoints.
+   - `Secret Manager Secret Accessor` (`roles/secretmanager.secretAccessor`) on `WEBHOOK_ENCRYPTION_KEY`.
+8. Configure CORS on your Firebase Cloud Storage bucket so browser uploads (`PUT`) from the PWA succeed:
+   ```bash
+   cat > /tmp/cors.json <<'EOF'
+   [
+     {
+       "origin": ["https://<FIREBASE_PROJECT_ID>.web.app"],
+       "method": ["GET", "PUT", "HEAD"],
+       "responseHeader": ["Content-Type"],
+       "maxAgeSeconds": 3600
+     }
+   ]
+   EOF
+   gcloud storage buckets update gs://<FIREBASE_PROJECT_ID>.firebasestorage.app --cors-file=/tmp/cors.json
+   rm /tmp/cors.json
+   ```
+   *(Check your Storage bucket URI in Firebase Console → Storage — older projects use `<FIREBASE_PROJECT_ID>.appspot.com` while newer projects use `<FIREBASE_PROJECT_ID>.firebasestorage.app`.)*
 
 ---
 
