@@ -17,7 +17,7 @@ export default defineConfig({
         'pwa-maskable-512x512.png',
       ],
       manifest: {
-        name: 'Agent Kanban',
+        name: 'agent-kanban',
         short_name: 'Kanban',
         description: 'Agent-first household task board',
         theme_color: '#0f172a',

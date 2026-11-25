@@ -62,7 +62,7 @@ test.describe('M4.3 PWA Installability, Manifest, Icons, Offline Banner & Polish
       display: string;
       icons: Array<{ src: string; sizes?: string; purpose?: string }>;
     };
-    expect(manifest.name).toBe('Agent Kanban');
+    expect(manifest.name).toBe('agent-kanban');
     expect(manifest.display).toBe('standalone');
     expect(manifest.icons.length).toBeGreaterThanOrEqual(3);
 
