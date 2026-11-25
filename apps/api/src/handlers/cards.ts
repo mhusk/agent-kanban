@@ -10,8 +10,11 @@ import {
   CreateCardInputSchema,
   EntityIdSchema,
   IsoDateTimeSchema,
+  SearchCardsQuerySchema,
   UpdateCardInputSchema,
   buildSearchTokens,
+  matchesSearchQuery,
+  tokenizeQuery,
   type Activity,
   type Card,
   type CardStatus,
@@ -425,6 +428,36 @@ export async function listCardsHandler(
     (query.sort === undefined && statusFilter?.length === 1 && statusFilter[0] === 'todo');
 
   cards.sort(usePrioritySort ? compareTodoCards : compareUpdatedDesc);
+
+  return { cards };
+}
+
+export async function searchCardsHandler(
+  auth: AuthContext,
+  rawQuery: unknown,
+  deps: HandlerDeps = {},
+): Promise<{ cards: Card[] }> {
+  const query = parseWithSchema(SearchCardsQuerySchema, rawQuery ?? {}, 'Invalid search query');
+  const queryTokens = tokenizeQuery(query.q);
+  if (queryTokens.length === 0) {
+    return { cards: [] };
+  }
+
+  const db = deps.db ?? getDb();
+  let firestoreQuery = db
+    .collection('cards')
+    .where('visibleToUserIds', 'array-contains', auth.ownerUserId);
+
+  if (query.archived !== 'all') {
+    firestoreQuery = firestoreQuery.where('archived', '==', query.archived === 'true');
+  }
+
+  const snap = await firestoreQuery.get();
+  const cards = snap.docs
+    .map((doc) => parseStoredCard(doc.id, doc.data()))
+    .filter((card) => matchesSearchQuery(card.searchTokens, query.q));
+
+  cards.sort(compareUpdatedDesc);
 
   return { cards };
 }

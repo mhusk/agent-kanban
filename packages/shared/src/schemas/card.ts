@@ -128,6 +128,70 @@ export const CreateChecklistInputSchema = z.object({
 });
 export type CreateChecklistInput = z.infer<typeof CreateChecklistInputSchema>;
 
+export const CreateCardChecklistInputSchema = CreateChecklistInputSchema.extend({
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type CreateCardChecklistInput = z.infer<typeof CreateCardChecklistInputSchema>;
+
+export const UpdateChecklistInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    items: z
+      .array(
+        z.object({
+          id: EntityIdSchema.optional(),
+          text: z.string().trim().min(1).max(500),
+          checked: z.boolean().optional().default(false),
+        }),
+      )
+      .optional(),
+    ifUpdatedAt: IsoDateTimeSchema.optional(),
+    note: NoteSchema.optional(),
+  })
+  .refine((v) => v.title !== undefined || v.items !== undefined, {
+    message: 'At least one of "title" or "items" must be provided',
+  });
+export type UpdateChecklistInput = z.infer<typeof UpdateChecklistInputSchema>;
+
+export const CreateChecklistItemInputSchema = z.object({
+  text: z.string().trim().min(1).max(500),
+  checked: z.boolean().optional().default(false),
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type CreateChecklistItemInput = z.infer<typeof CreateChecklistItemInputSchema>;
+
+export const UpdateChecklistItemInputSchema = z
+  .object({
+    text: z.string().trim().min(1).max(500).optional(),
+    checked: z.boolean().optional(),
+    ifUpdatedAt: IsoDateTimeSchema.optional(),
+    note: NoteSchema.optional(),
+  })
+  .refine((v) => v.text !== undefined || v.checked !== undefined, {
+    message: 'At least one of "text" or "checked" must be provided',
+  });
+export type UpdateChecklistItemInput = z.infer<typeof UpdateChecklistItemInputSchema>;
+
+export const AddCardLinkInputSchema = CreateLinkAttachmentInputSchema.extend({
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type AddCardLinkInput = z.infer<typeof AddCardLinkInputSchema>;
+
+export const CardMutationMetaInputSchema = z.object({
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type CardMutationMetaInput = z.infer<typeof CardMutationMetaInputSchema>;
+
+export const SearchCardsQuerySchema = z.object({
+  q: z.string().trim().min(1).max(500),
+  archived: z.enum(['true', 'false', 'all']).optional().default('false'),
+});
+export type SearchCardsQuery = z.infer<typeof SearchCardsQuerySchema>;
+
 export const CreateCardInputSchema = z.object({
   title: z.string().trim().min(1).max(300),
   description: z.string().max(20000).optional().default(''),

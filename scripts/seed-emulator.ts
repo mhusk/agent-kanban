@@ -1,7 +1,13 @@
 import { pathToFileURL } from 'node:url';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
-import { CardSchema, UserSchema, type Card, type User } from '@agent-kanban/shared';
+import {
+  CardSchema,
+  UserSchema,
+  buildSearchTokens,
+  type Card,
+  type User,
+} from '@agent-kanban/shared';
 
 export const SEED_USERS: readonly User[] = [
   UserSchema.parse({
@@ -243,7 +249,16 @@ export function buildSeedCards(now: Date = new Date()): Card[] {
     },
   ];
 
-  return rawCards.map((card) => CardSchema.parse(card));
+  return rawCards.map((card) =>
+    CardSchema.parse({
+      ...card,
+      searchTokens: buildSearchTokens({
+        title: card.title,
+        description: card.description,
+        checklists: card.checklists,
+      }),
+    }),
+  );
 }
 
 export interface SeedResult {

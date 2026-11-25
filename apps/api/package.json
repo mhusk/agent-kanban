@@ -23,6 +23,7 @@
     "test:smoke": "vitest run tests/health.test.ts",
     "test:auth": "vitest run tests/auth.test.ts",
     "test:cards": "vitest run tests/cards.test.ts",
+    "test:checklists-search": "vitest run tests/checklists-search.test.ts",
     "test:integration": "vitest run tests/ --exclude tests/rules.test.ts --no-file-parallelism"
   },
   "devDependencies": {
