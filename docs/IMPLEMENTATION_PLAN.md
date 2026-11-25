@@ -47,7 +47,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M1.3** — Checklists CRUD/toggle, link attachments & full-text token search
 - [x] **M1.4** — Comments with `@mentions` & in-place recurring card resets
 - [x] **M1.5** — PWA views: Bottom nav, `To-Do` (Top 5 + collapsible), `Active`, `Done`, search & filters
-- [ ] **M1.6** — PWA Quick-Add (FAB + household sharing default) & full Card Detail view
+- [x] **M1.6** — PWA Quick-Add (FAB + household sharing default) & full Card Detail view
 
 ### Milestone 2: Agent Connections & Prioritization API
 - [ ] **M2.1** — User-owned Agent Connections, hashed API keys (`ak_...`) & `X-Agent-Name` attribution
@@ -460,7 +460,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M1.6: PWA Quick-Add (FAB + household sharing default) & full Card Detail view
+### - [x] Step M1.6: PWA Quick-Add (FAB + household sharing default) & full Card Detail view
 
 **Goal:** Complete full human task interaction in the PWA—quick card creation with default household visibility and a complete Card Detail page.
 

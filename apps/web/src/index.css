@@ -7,6 +7,16 @@
   }
 }
 
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  background-color: rgba(15, 23, 42, 0.5);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
 /* Visually hides content while keeping it in the accessibility tree;
    :focus-within / :active reveal skip links when keyboard-focused. */
 .visually-hidden:where(:not(:focus-within, :active)) {

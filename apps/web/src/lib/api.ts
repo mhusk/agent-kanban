@@ -1,4 +1,25 @@
-import { CardSchema, UserSchema, type Card, type User } from '@agent-kanban/shared';
+import {
+  ActivitySchema,
+  CardSchema,
+  ChecklistItemSchema,
+  ChecklistSchema,
+  CommentSchema,
+  LinkAttachmentSchema,
+  UserSchema,
+  type Activity,
+  type Card,
+  type CardStatus,
+  type Checklist,
+  type ChecklistItem,
+  type Comment,
+  type CreateCardInput,
+  type CreateChecklistInput,
+  type CreateLinkAttachmentInput,
+  type LinkAttachment,
+  type UpdateCardInput,
+  type UpdateChecklistInput,
+  type User,
+} from '@agent-kanban/shared';
 
 export interface StructuredErrorPayload {
   error?: {
@@ -178,6 +199,299 @@ export async function searchCards(
     signal,
   });
   return CardSchema.array().parse(data.cards);
+}
+
+export async function fetchCard(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  signal?: AbortSignal,
+): Promise<Card> {
+  const data = await apiRequest<{ card: unknown }>(`/api/cards/${encodeURIComponent(cardId)}`, {
+    getAccessToken,
+    signal,
+  });
+  return CardSchema.parse(data.card);
+}
+
+export async function createCard(
+  getAccessToken: AccessTokenProvider,
+  payload: Partial<CreateCardInput> & { title: string },
+  idempotencyKey?: string,
+): Promise<Card> {
+  const data = await apiRequest<{ card: unknown }>('/api/cards', {
+    method: 'POST',
+    body: payload,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    getAccessToken,
+  });
+  return CardSchema.parse(data.card);
+}
+
+export async function updateCard(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  payload: UpdateCardInput,
+): Promise<Card> {
+  const data = await apiRequest<{ card: unknown }>(`/api/cards/${encodeURIComponent(cardId)}`, {
+    method: 'PATCH',
+    body: payload,
+    getAccessToken,
+  });
+  return CardSchema.parse(data.card);
+}
+
+export async function changeCardStatus(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  status: CardStatus,
+  opts?: { ifUpdatedAt?: string; note?: string },
+): Promise<Card> {
+  const data = await apiRequest<{ card: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/status`,
+    {
+      method: 'POST',
+      body: { status, ...opts },
+      getAccessToken,
+    },
+  );
+  return CardSchema.parse(data.card);
+}
+
+export async function completeCard(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  opts?: { ifUpdatedAt?: string; note?: string },
+): Promise<{ card: Card; recurringReset: boolean }> {
+  const data = await apiRequest<{ card: unknown; recurringReset: boolean }>(
+    `/api/cards/${encodeURIComponent(cardId)}/complete`,
+    {
+      method: 'POST',
+      body: opts ?? {},
+      getAccessToken,
+    },
+  );
+  return {
+    card: CardSchema.parse(data.card),
+    recurringReset: Boolean(data.recurringReset),
+  };
+}
+
+export async function archiveCard(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  archived: boolean,
+  opts?: { ifUpdatedAt?: string; note?: string },
+): Promise<Card> {
+  const data = await apiRequest<{ card: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/archive`,
+    {
+      method: 'POST',
+      body: { archived, ...opts },
+      getAccessToken,
+    },
+  );
+  return CardSchema.parse(data.card);
+}
+
+export async function createChecklist(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  payload: Partial<CreateChecklistInput> & { title: string },
+): Promise<{ card: Card; checklist: Checklist }> {
+  const data = await apiRequest<{ card: unknown; checklist: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/checklists`,
+    {
+      method: 'POST',
+      body: payload,
+      getAccessToken,
+    },
+  );
+  return {
+    card: CardSchema.parse(data.card),
+    checklist: ChecklistSchema.parse(data.checklist),
+  };
+}
+
+export async function updateChecklist(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  checklistId: string,
+  payload: UpdateChecklistInput,
+): Promise<{ card: Card; checklist: Checklist }> {
+  const data = await apiRequest<{ card: unknown; checklist: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/checklists/${encodeURIComponent(checklistId)}`,
+    {
+      method: 'PATCH',
+      body: payload,
+      getAccessToken,
+    },
+  );
+  return {
+    card: CardSchema.parse(data.card),
+    checklist: ChecklistSchema.parse(data.checklist),
+  };
+}
+
+export async function deleteChecklist(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  checklistId: string,
+): Promise<{ card: Card }> {
+  const data = await apiRequest<{ card: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/checklists/${encodeURIComponent(checklistId)}`,
+    {
+      method: 'DELETE',
+      body: {},
+      getAccessToken,
+    },
+  );
+  return { card: CardSchema.parse(data.card) };
+}
+
+export async function addChecklistItem(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  checklistId: string,
+  payload: { text: string; checked?: boolean },
+): Promise<{ card: Card; item: ChecklistItem }> {
+  const data = await apiRequest<{ card: unknown; item: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/checklists/${encodeURIComponent(checklistId)}/items`,
+    {
+      method: 'POST',
+      body: payload,
+      getAccessToken,
+    },
+  );
+  return {
+    card: CardSchema.parse(data.card),
+    item: ChecklistItemSchema.parse(data.item),
+  };
+}
+
+export async function updateChecklistItem(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  checklistId: string,
+  itemId: string,
+  payload: { text?: string; checked?: boolean },
+): Promise<{ card: Card; item: ChecklistItem }> {
+  const data = await apiRequest<{ card: unknown; item: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/checklists/${encodeURIComponent(checklistId)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: 'PATCH',
+      body: payload,
+      getAccessToken,
+    },
+  );
+  return {
+    card: CardSchema.parse(data.card),
+    item: ChecklistItemSchema.parse(data.item),
+  };
+}
+
+export async function deleteChecklistItem(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  checklistId: string,
+  itemId: string,
+): Promise<{ card: Card }> {
+  const data = await apiRequest<{ card: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/checklists/${encodeURIComponent(checklistId)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: 'DELETE',
+      body: {},
+      getAccessToken,
+    },
+  );
+  return { card: CardSchema.parse(data.card) };
+}
+
+export async function addCardLink(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  payload: CreateLinkAttachmentInput,
+): Promise<{ card: Card; link: LinkAttachment }> {
+  const data = await apiRequest<{ card: unknown; link: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/links`,
+    {
+      method: 'POST',
+      body: payload,
+      getAccessToken,
+    },
+  );
+  return {
+    card: CardSchema.parse(data.card),
+    link: LinkAttachmentSchema.parse(data.link),
+  };
+}
+
+export async function deleteCardLink(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  linkId: string,
+): Promise<{ card: Card }> {
+  const data = await apiRequest<{ card: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/links/${encodeURIComponent(linkId)}`,
+    {
+      method: 'DELETE',
+      body: {},
+      getAccessToken,
+    },
+  );
+  return { card: CardSchema.parse(data.card) };
+}
+
+export async function fetchCardComments(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  signal?: AbortSignal,
+): Promise<Comment[]> {
+  const data = await apiRequest<{ comments: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/comments`,
+    {
+      getAccessToken,
+      signal,
+    },
+  );
+  return CommentSchema.array().parse(data.comments);
+}
+
+export async function createCardComment(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  text: string,
+  note?: string,
+): Promise<{ comment: Comment; card: Card }> {
+  const data = await apiRequest<{ comment: unknown; card: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/comments`,
+    {
+      method: 'POST',
+      body: { text, ...(note ? { note } : {}) },
+      getAccessToken,
+    },
+  );
+  return {
+    comment: CommentSchema.parse(data.comment),
+    card: CardSchema.parse(data.card),
+  };
+}
+
+export async function fetchCardActivity(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  signal?: AbortSignal,
+): Promise<{ activity: Activity[]; nextCursor: string | null }> {
+  const data = await apiRequest<{ activity: unknown; nextCursor: string | null }>(
+    `/api/cards/${encodeURIComponent(cardId)}/activity`,
+    {
+      getAccessToken,
+      signal,
+    },
+  );
+  return {
+    activity: ActivitySchema.array().parse(data.activity),
+    nextCursor: data.nextCursor,
+  };
 }
 
 export interface DevTokenRequest {

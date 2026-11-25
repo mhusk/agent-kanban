@@ -1,4 +1,14 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function hasHorizontalOverflow(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const win = globalThis as unknown as {
+      innerWidth: number;
+      document: { documentElement: { scrollWidth: number } };
+    };
+    return win.document.documentElement.scrollWidth > win.innerWidth;
+  });
+}
 
 const PROJECT_ID = process.env.GCLOUD_PROJECT ?? 'demo-agent-kanban';
 const FIRESTORE_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
@@ -224,10 +234,7 @@ test.describe('M1.5 PWA Views, Top 5 To-Do, Active, Done, Search & Filters', () 
     await expect(page.getByRole('button', { name: 'Hide 3 more' })).toBeVisible();
 
     // Mobile horizontal overflow check on To-Do
-    const todoOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth,
-    );
-    expect(todoOverflow).toBe(false);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
 
     // Filter by #finance tag -> narrows to Priority 2 and Priority 7
     await page.getByRole('button', { name: '#finance' }).click();
@@ -260,10 +267,7 @@ test.describe('M1.5 PWA Views, Top 5 To-Do, Active, Done, Search & Filters', () 
     await expect(page.getByText('Doing Card — Paint hallway trim')).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: /Blocked \(1\)/ })).toBeVisible();
     await expect(page.getByText('Blocked Card — Waiting for patio chair cushions')).toBeVisible();
-    const activeOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth,
-    );
-    expect(activeOverflow).toBe(false);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
 
     // Done tab: non-archived visible, archived hidden until toggled
     await page.getByRole('link', { name: 'Done' }).click();
@@ -273,17 +277,11 @@ test.describe('M1.5 PWA Views, Top 5 To-Do, Active, Done, Search & Filters', () 
 
     await page.getByLabel('Include archived').check();
     await expect(page.getByText('Archived Done Card — Old winter salt bag')).toBeVisible();
-    const doneOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth,
-    );
-    expect(doneOverflow).toBe(false);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
 
     // Settings tab: zero overflow
     await page.getByRole('link', { name: 'Settings' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
-    const settingsOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth,
-    );
-    expect(settingsOverflow).toBe(false);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
   });
 });

@@ -1,10 +1,14 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { assertEmulatorAuthAllowed, readConfig, type AppConfig } from '../config.js';
 import {
   EMULATOR_JWT_AUDIENCE,
   EMULATOR_JWT_ISSUER,
+  resetEmulatorKeyPairForTests,
   signEmulatorToken,
   verifyEmulatorToken,
 } from '../lib/emulatorAuth.js';
@@ -145,5 +149,57 @@ describe('Emulator RSA JWT signing & verification', () => {
       statusCode: 401,
       code: 'INVALID_TOKEN',
     });
+  });
+
+  it('shares the runtime-generated keypair across emulator workers via os.tmpdir()', async () => {
+    const prevHost = process.env.FIRESTORE_EMULATOR_HOST;
+    const prevProject = process.env.GCLOUD_PROJECT;
+    const uniqueHost = `127.0.0.1:unit-${crypto.randomUUID()}`;
+    process.env.FIRESTORE_EMULATOR_HOST = uniqueHost;
+    process.env.GCLOUD_PROJECT = 'demo-agent-kanban';
+
+    const expectedFile = path.join(
+      os.tmpdir(),
+      `agent-kanban-emu-rsa-demo-agent-kanban-${uniqueHost.replace(/[^A-Za-z0-9._-]/g, '_')}.json`,
+    );
+
+    const emuConfig = readConfig({
+      FUNCTIONS_EMULATOR: 'true',
+      AUTH_MODE: 'emulator',
+    });
+
+    try {
+      resetEmulatorKeyPairForTests();
+      const token = await signEmulatorToken(
+        {
+          sub: 'workos_worker_1',
+          email: 'sam@example.test',
+        },
+        emuConfig,
+      );
+
+      // Simulate a second worker process with an empty in-memory key cache
+      resetEmulatorKeyPairForTests();
+      const verified = await verifyEmulatorToken(token, emuConfig);
+      expect(verified.sub).toBe('workos_worker_1');
+      expect(verified.email).toBe('sam@example.test');
+    } finally {
+      resetEmulatorKeyPairForTests();
+      if (prevHost === undefined) {
+        delete process.env.FIRESTORE_EMULATOR_HOST;
+      } else {
+        process.env.FIRESTORE_EMULATOR_HOST = prevHost;
+      }
+      if (prevProject === undefined) {
+        delete process.env.GCLOUD_PROJECT;
+      } else {
+        process.env.GCLOUD_PROJECT = prevProject;
+      }
+      try {
+        fs.unlinkSync(expectedFile);
+      } catch {
+        // Ignore if file was not created
+      }
+    }
   });
 });
