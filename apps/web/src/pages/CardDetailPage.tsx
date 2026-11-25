@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CardStatus, Recurrence, RecurrenceUnit, User } from '@agent-kanban/shared';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { AttachmentSection } from '../components/AttachmentSection.js';
 import {
   addCardLink,
   addChecklistItem,
@@ -1053,6 +1054,9 @@ export function CardDetailPage({ user }: { user: User }) {
           </div>
         </form>
       </section>
+
+      {/* Photo & PDF Attachments */}
+      <AttachmentSection cardId={card.id} />
 
       {/* Comments */}
       <section

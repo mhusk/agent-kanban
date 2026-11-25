@@ -62,7 +62,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 
 ### Milestone 4: File Uploads, PWA Polish & Production Readiness
 - [x] **M4.1** — GCS signed-URL attachment API (upload/confirm/download/delete, 10 MB + MIME checks)
-- [ ] **M4.2** — PWA client-side image compression, photo/PDF upload & attachment gallery
+- [x] **M4.2** — PWA client-side image compression, photo/PDF upload & attachment gallery
 - [ ] **M4.3** — PWA installability, icons/manifest, offline banner, optimistic UX & accessibility polish
 - [ ] **M4.4** — Public `README.md`, self-hosting guide, prod smoke script & full regression verification
 - [ ] **M4.5 `[HUMAN]`** — Production verification (household PWA install + Chief of Staff live test)
@@ -747,7 +747,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M4.2: PWA client-side image compression, photo/PDF upload & attachment gallery
+### - [x] Step M4.2: PWA client-side image compression, photo/PDF upload & attachment gallery
 
 **Goal:** Allow household users to snap/upload photos and attach PDFs directly from their phones with automatic client-side photo compression to keep Blaze Storage costs near zero.
 

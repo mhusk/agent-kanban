@@ -1,6 +1,7 @@
 import {
   ActivitySchema,
   AgentConnectionSchema,
+  AttachmentSchema,
   CardSchema,
   ChecklistItemSchema,
   ChecklistSchema,
@@ -11,6 +12,8 @@ import {
   UserSchema,
   type Activity,
   type AgentConnection,
+  type AllowedAttachmentMimeType,
+  type Attachment,
   type Card,
   type CardStatus,
   type Checklist,
@@ -444,6 +447,105 @@ export async function deleteCardLink(
     },
   );
   return { card: CardSchema.parse(data.card) };
+}
+
+export async function fetchCardAttachments(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  signal?: AbortSignal,
+): Promise<Attachment[]> {
+  const data = await apiRequest<{ attachments: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/attachments`,
+    {
+      getAccessToken,
+      signal,
+    },
+  );
+  return AttachmentSchema.array().parse(data.attachments);
+}
+
+export async function requestAttachmentUploadUrl(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  payload: { fileName: string; contentType: AllowedAttachmentMimeType; size: number },
+): Promise<{ attachmentId: string; uploadUrl: string; storagePath: string; expiresAt: string }> {
+  return apiRequest<{
+    attachmentId: string;
+    uploadUrl: string;
+    storagePath: string;
+    expiresAt: string;
+  }>(`/api/cards/${encodeURIComponent(cardId)}/attachments/upload-url`, {
+    method: 'POST',
+    body: payload,
+    getAccessToken,
+  });
+}
+
+export async function uploadFileToSignedUrl(
+  uploadUrl: string,
+  file: Blob,
+  contentType: string,
+): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+    },
+    body: file,
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, 'STORAGE_UPLOAD_FAILED', `Upload failed (HTTP ${res.status})`);
+  }
+}
+
+export async function confirmAttachmentUpload(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  attachmentId: string,
+): Promise<Attachment> {
+  const data = await apiRequest<{ attachment: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/attachments/${encodeURIComponent(attachmentId)}/confirm`,
+    {
+      method: 'POST',
+      body: {},
+      getAccessToken,
+    },
+  );
+  return AttachmentSchema.parse(data.attachment);
+}
+
+export async function fetchAttachmentDownloadUrl(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  attachmentId: string,
+  signal?: AbortSignal,
+): Promise<{ downloadUrl: string; expiresAt: string; attachment: Attachment }> {
+  const data = await apiRequest<{ downloadUrl: string; expiresAt: string; attachment: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,
+    {
+      getAccessToken,
+      signal,
+    },
+  );
+  return {
+    downloadUrl: data.downloadUrl,
+    expiresAt: data.expiresAt,
+    attachment: AttachmentSchema.parse(data.attachment),
+  };
+}
+
+export async function deleteCardAttachment(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  attachmentId: string,
+): Promise<{ deleted: true; id: string }> {
+  return apiRequest<{ deleted: true; id: string }>(
+    `/api/cards/${encodeURIComponent(cardId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    {
+      method: 'DELETE',
+      getAccessToken,
+    },
+  );
 }
 
 export async function fetchCardComments(
