@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@agent-kanban/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "express": "^4.22.3",
     "firebase-admin": "^13.10.0",
     "firebase-functions": "^6.6.0",
@@ -27,6 +28,7 @@
     "test:checklists-search": "vitest run tests/checklists-search.test.ts",
     "test:comments-recurrence": "vitest run tests/comments-recurrence.test.ts",
     "test:prioritization": "vitest run tests/prioritization.test.ts",
+    "test:mcp": "vitest run tests/mcp.test.ts",
     "test:integration": "vitest run tests/ --exclude tests/rules.test.ts --no-file-parallelism"
   },
   "devDependencies": {

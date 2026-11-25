@@ -55,7 +55,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M2.3** — PWA Settings: Agent Connection / API Key management & household roster
 
 ### Milestone 3: MCP Server, Filtered Webhooks & Scheduled Jobs
-- [ ] **M3.1** — Shared handler layer, Stateless Streamable HTTP `/mcp` & RFC 9728 OAuth metadata
+- [x] **M3.1** — Shared handler layer, Stateless Streamable HTTP `/mcp` & RFC 9728 OAuth metadata
 - [ ] **M3.2** — Event pipeline, agent loop suppression & 30-day polling fallback (`GET /api/events`)
 - [ ] **M3.3** — Filtered webhook subscriptions, AES-GCM encryption, `Bearer`/`HMAC` delivery & retries
 - [ ] **M3.4** — Scheduled jobs (`due_soon`/`overdue`, 30-day auto-archive, cleanup, backup) & Settings webhooks view
@@ -585,7 +585,7 @@ pnpm ci:verify
 
 ## Milestone 3: MCP Server, Filtered Webhooks & Scheduled Jobs
 
-### - [ ] Step M3.1: Shared handler layer, Stateless Streamable HTTP `/mcp` & RFC 9728 OAuth metadata
+### - [x] Step M3.1: Shared handler layer, Stateless Streamable HTTP `/mcp` & RFC 9728 OAuth metadata
 
 **Goal:** Expose the entire `agent-kanban` toolset as a spec-compliant remote MCP server over Streamable HTTP sharing the exact same handler functions as the REST API.
 
