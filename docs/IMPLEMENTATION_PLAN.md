@@ -46,7 +46,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M1.2** — Core Card CRUD, visibility, status transitions, idempotency, `ifUpdatedAt` & activity log
 - [x] **M1.3** — Checklists CRUD/toggle, link attachments & full-text token search
 - [x] **M1.4** — Comments with `@mentions` & in-place recurring card resets
-- [ ] **M1.5** — PWA views: Bottom nav, `To-Do` (Top 5 + collapsible), `Active`, `Done`, search & filters
+- [x] **M1.5** — PWA views: Bottom nav, `To-Do` (Top 5 + collapsible), `Active`, `Done`, search & filters
 - [ ] **M1.6** — PWA Quick-Add (FAB + household sharing default) & full Card Detail view
 
 ### Milestone 2: Agent Connections & Prioritization API
@@ -435,7 +435,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M1.5: PWA views — Bottom nav, `To-Do` (Top 5 + collapsible), `Active`, `Done`, search & filters
+### - [x] Step M1.5: PWA views — Bottom nav, `To-Do` (Top 5 + collapsible), `Active`, `Done`, search & filters
 
 **Goal:** Build the mobile-first single-column PWA views for browsing, filtering, and searching the unified card pool.
 

@@ -2,83 +2,23 @@ import { useEffect } from 'react';
 import { APP_NAME, type User } from '@agent-kanban/shared';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useAppAuth } from '../lib/auth.js';
+import { ActivePage } from '../pages/ActivePage.js';
+import { DonePage } from '../pages/DonePage.js';
+import { SettingsPage } from '../pages/SettingsPage.js';
+import { TodoPage } from '../pages/TodoPage.js';
 
 interface TabConfig {
   to: string;
   label: string;
   title: string;
-  summary: string;
 }
 
 const TABS: readonly TabConfig[] = [
-  {
-    to: '/',
-    label: 'To-Do',
-    title: 'To-Do',
-    summary: 'Your AI-prioritized Top 5 queue will appear here in Milestone 1.',
-  },
-  {
-    to: '/active',
-    label: 'Active',
-    title: 'Active',
-    summary: 'In-progress and blocked household cards will appear here in Milestone 1.',
-  },
-  {
-    to: '/done',
-    label: 'Done',
-    title: 'Done',
-    summary: 'Recently completed cards before auto-archiving will appear here in Milestone 1.',
-  },
-  {
-    to: '/settings',
-    label: 'Settings',
-    title: 'Settings',
-    summary: 'Agent connections, API keys, webhooks, and household roster settings.',
-  },
+  { to: '/', label: 'To-Do', title: 'To-Do' },
+  { to: '/active', label: 'Active', title: 'Active' },
+  { to: '/done', label: 'Done', title: 'Done' },
+  { to: '/settings', label: 'Settings', title: 'Settings' },
 ] as const;
-
-function PlaceholderSection({
-  heading,
-  summary,
-  user,
-}: {
-  heading: string;
-  summary: string;
-  user: User;
-}) {
-  return (
-    <section className="space-y-4">
-      <h1 id="main-content" tabIndex={-1} className="text-2xl font-semibold tracking-tight">
-        {heading}
-      </h1>
-      <p className="text-sm text-slate-600">{summary}</p>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <h2 className="text-sm font-semibold tracking-wide text-slate-500 uppercase">
-          Signed-in Household Member
-        </h2>
-        <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-xs text-slate-500">Name</dt>
-            <dd className="font-medium text-slate-900">{user.displayName}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500">Handle</dt>
-            <dd className="font-medium text-slate-900">@{user.handle}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500">Email</dt>
-            <dd className="font-medium text-slate-900">{user.email}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500">Role</dt>
-            <dd className="font-medium text-slate-900 capitalize">{user.role}</dd>
-          </div>
-        </dl>
-      </div>
-    </section>
-  );
-}
 
 export interface AppShellProps {
   user: User;
@@ -135,29 +75,16 @@ export function AppShell({ user }: AppShellProps) {
 
       <main className="mx-auto w-full max-w-xl flex-1 px-4 pt-6 pb-24">
         <Routes>
-          <Route
-            path="/"
-            element={<PlaceholderSection heading="To-Do" summary={TABS[0]!.summary} user={user} />}
-          />
-          <Route
-            path="/active"
-            element={<PlaceholderSection heading="Active" summary={TABS[1]!.summary} user={user} />}
-          />
-          <Route
-            path="/done"
-            element={<PlaceholderSection heading="Done" summary={TABS[2]!.summary} user={user} />}
-          />
-          <Route
-            path="/settings"
-            element={
-              <PlaceholderSection heading="Settings" summary={TABS[3]!.summary} user={user} />
-            }
-          />
-          <Route
-            path="*"
-            element={<PlaceholderSection heading="To-Do" summary={TABS[0]!.summary} user={user} />}
-          />
+          <Route path="/" element={<TodoPage user={user} />} />
+          <Route path="/active" element={<ActivePage user={user} />} />
+          <Route path="/done" element={<DonePage user={user} />} />
+          <Route path="/settings" element={<SettingsPage user={user} />} />
+          <Route path="*" element={<TodoPage user={user} />} />
         </Routes>
+
+        <p className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
+          Signed in as {user.displayName} ({user.email})
+        </p>
       </main>
 
       <nav

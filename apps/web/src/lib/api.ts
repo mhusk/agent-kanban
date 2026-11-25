@@ -1,4 +1,4 @@
-import { UserSchema, type User } from '@agent-kanban/shared';
+import { CardSchema, UserSchema, type Card, type User } from '@agent-kanban/shared';
 
 export interface StructuredErrorPayload {
   error?: {
@@ -122,6 +122,62 @@ export async function fetchHouseholdUsers(
     signal,
   });
   return UserSchema.array().parse(data.users);
+}
+
+export interface CardListFilters {
+  status?: string;
+  tag?: string;
+  assignedTo?: string;
+  awareOf?: string;
+  archived?: 'true' | 'false' | 'all';
+  sort?: 'priority' | 'updated';
+}
+
+export async function fetchCards(
+  getAccessToken: AccessTokenProvider,
+  filters: CardListFilters = {},
+  signal?: AbortSignal,
+): Promise<Card[]> {
+  const params = new URLSearchParams();
+  if (filters.status !== undefined) {
+    params.set('status', filters.status);
+  }
+  if (filters.tag !== undefined) {
+    params.set('tag', filters.tag);
+  }
+  if (filters.assignedTo !== undefined) {
+    params.set('assignedTo', filters.assignedTo);
+  }
+  if (filters.awareOf !== undefined) {
+    params.set('awareOf', filters.awareOf);
+  }
+  if (filters.archived !== undefined) {
+    params.set('archived', filters.archived);
+  }
+  if (filters.sort !== undefined) {
+    params.set('sort', filters.sort);
+  }
+  const qs = params.toString();
+  const path = qs.length > 0 ? `/api/cards?${qs}` : '/api/cards';
+  const data = await apiRequest<{ cards: unknown }>(path, {
+    getAccessToken,
+    signal,
+  });
+  return CardSchema.array().parse(data.cards);
+}
+
+export async function searchCards(
+  getAccessToken: AccessTokenProvider,
+  q: string,
+  archived: 'true' | 'false' | 'all' = 'false',
+  signal?: AbortSignal,
+): Promise<Card[]> {
+  const params = new URLSearchParams({ q, archived });
+  const data = await apiRequest<{ cards: unknown }>(`/api/cards/search?${params.toString()}`, {
+    getAccessToken,
+    signal,
+  });
+  return CardSchema.array().parse(data.cards);
 }
 
 export interface DevTokenRequest {
