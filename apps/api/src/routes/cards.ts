@@ -1,8 +1,9 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import type { AppConfig } from '../config.js';
+import { getConfig, type AppConfig } from '../config.js';
 import {
   archiveCardHandler,
   changeCardStatusHandler,
+  completeCardHandler,
   createCardHandler,
   getCardByIdHandler,
   getCardByTrelloHandler,
@@ -22,6 +23,7 @@ import {
   updateChecklistHandler,
   updateChecklistItemHandler,
 } from '../handlers/checklists.js';
+import { createCardCommentHandler, listCardCommentsHandler } from '../handlers/comments.js';
 import { AppError } from '../lib/errors.js';
 import { createAuthMiddleware } from '../middleware/auth.js';
 import { normalizeIdempotencyKey } from '../services/idempotency.js';
@@ -142,6 +144,57 @@ export function createCardsRouter(configOverride?: AppConfig): Router {
           const auth = requireReqAuth(req);
           const result = await archiveCardHandler(auth, req.params.id, req.body);
           res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.post(
+    '/cards/:id/complete',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const householdTimezone = (configOverride ?? getConfig()).householdTimezone;
+          const result = await completeCardHandler(auth, req.params.id, req.body, {
+            householdTimezone,
+          });
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.get(
+    '/cards/:id/comments',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await listCardCommentsHandler(auth, req.params.id);
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.post(
+    '/cards/:id/comments',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await createCardCommentHandler(auth, req.params.id, req.body);
+          res.status(201).json(result);
         } catch (error) {
           next(error);
         }

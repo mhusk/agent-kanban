@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ActorTypeSchema } from './activity.js';
-import { EntityIdSchema, IsoDateTimeSchema } from './common.js';
+import { EntityIdSchema, IsoDateTimeSchema, NoteSchema } from './common.js';
 
 export const CommentSchema = z.object({
   id: EntityIdSchema,
@@ -17,5 +17,6 @@ export type Comment = z.infer<typeof CommentSchema>;
 
 export const CreateCommentInputSchema = z.object({
   text: z.string().trim().min(1).max(10000),
+  note: NoteSchema.optional(),
 });
 export type CreateCommentInput = z.infer<typeof CreateCommentInputSchema>;

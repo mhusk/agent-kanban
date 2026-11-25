@@ -7,12 +7,14 @@ import {
   CardSchema,
   CardStatusSchema,
   ChangeCardStatusInputSchema,
+  CompleteCardInputSchema,
   CreateCardInputSchema,
   EntityIdSchema,
   IsoDateTimeSchema,
   SearchCardsQuerySchema,
   UpdateCardInputSchema,
   buildSearchTokens,
+  computeNextDueDate,
   matchesSearchQuery,
   tokenizeQuery,
   type Activity,
@@ -21,6 +23,7 @@ import {
   type Checklist,
   type LinkAttachment,
 } from '@agent-kanban/shared';
+import { getConfig } from '../config.js';
 import { AppError, parseWithSchema } from '../lib/errors.js';
 import { getDb } from '../lib/firebase.js';
 import {
@@ -778,6 +781,141 @@ export async function archiveCardHandler(
   });
 
   return { card: updated };
+}
+
+export interface CompleteCardHandlerDeps extends HandlerDeps {
+  householdTimezone?: string;
+}
+
+export async function completeCardHandler(
+  auth: AuthContext,
+  rawCardId: unknown,
+  rawInput: unknown,
+  deps: CompleteCardHandlerDeps = {},
+): Promise<{ card: Card; recurringReset: boolean }> {
+  const cardId = parseWithSchema(EntityIdSchema, rawCardId, 'Invalid card ID');
+  const input = parseWithSchema(
+    CompleteCardInputSchema,
+    rawInput ?? {},
+    'Invalid completion payload',
+  );
+  const db = deps.db ?? getDb();
+  const getNow = deps.now ?? (() => new Date());
+
+  const cardRef = db.collection('cards').doc(cardId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(cardRef);
+    const existing = assertCardVisible(
+      snap.exists ? parseStoredCard(snap.id, snap.data() ?? {}) : null,
+      auth.ownerUserId,
+    );
+
+    if (input.ifUpdatedAt !== undefined && input.ifUpdatedAt !== existing.updatedAt) {
+      throw new AppError(409, 'CONFLICT', 'Card was modified concurrently', {
+        expectedUpdatedAt: input.ifUpdatedAt,
+        actualUpdatedAt: existing.updatedAt,
+      });
+    }
+
+    const nowIso = nextMonotonicIso(existing.updatedAt, getNow());
+
+    if (existing.recurrence === null) {
+      const nextCard = CardSchema.parse({
+        ...existing,
+        status: 'done',
+        enteredStatusAt: existing.status !== 'done' ? nowIso : existing.enteredStatusAt,
+        lastTouchedAt: nowIso,
+        updatedAt: nowIso,
+      });
+
+      const diff = computeFieldDiff(existing, nextCard, ['status']);
+      const activity = buildActivityEntry({
+        cardId: nextCard.id,
+        visibleToUserIds: nextCard.visibleToUserIds,
+        auth,
+        action: 'card.completed',
+        diff,
+        note: input.note ?? null,
+        createdAt: nowIso,
+      });
+
+      tx.set(cardRef, nextCard);
+      writeActivityInTransaction(tx, db, activity);
+
+      return {
+        card: nextCard,
+        recurringReset: false,
+      };
+    }
+
+    const defaultTz = deps.householdTimezone ?? getConfig().householdTimezone;
+    let nextDue: string;
+    try {
+      nextDue = computeNextDueDate(existing.recurrence, nowIso, existing.due, defaultTz, {
+        dueHasTime: existing.dueHasTime,
+      });
+    } catch (error) {
+      throw new AppError(
+        400,
+        'INVALID_RECURRENCE',
+        error instanceof Error ? error.message : 'Invalid card recurrence rule',
+      );
+    }
+
+    const resetChecklists: Checklist[] = existing.checklists.map((chk) => ({
+      ...chk,
+      items: chk.items.map((item) => ({
+        ...item,
+        checked: false,
+      })),
+    }));
+
+    const nextCard = CardSchema.parse({
+      ...existing,
+      status: 'todo',
+      due: nextDue,
+      checklists: resetChecklists,
+      priorityScore: null,
+      priorityReason: null,
+      dueSoonNotifiedAt: null,
+      overdueNotifiedAt: null,
+      enteredStatusAt: nowIso,
+      lastTouchedAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    const diff = computeFieldDiff(existing, nextCard, [
+      'status',
+      'due',
+      'priorityScore',
+      'priorityReason',
+      'checklists',
+    ]);
+    // Always record completed due -> next due on recurring completions even if unchanged.
+    diff.due = {
+      from: existing.due,
+      to: nextDue,
+    };
+
+    const activity = buildActivityEntry({
+      cardId: nextCard.id,
+      visibleToUserIds: nextCard.visibleToUserIds,
+      auth,
+      action: 'card.completed',
+      diff,
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
+
+    tx.set(cardRef, nextCard);
+    writeActivityInTransaction(tx, db, activity);
+
+    return {
+      card: nextCard,
+      recurringReset: true,
+    };
+  });
 }
 
 export async function listCardActivityHandler(

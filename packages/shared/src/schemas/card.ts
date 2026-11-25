@@ -248,6 +248,12 @@ export const ArchiveCardInputSchema = z.object({
 });
 export type ArchiveCardInput = z.infer<typeof ArchiveCardInputSchema>;
 
+export const CompleteCardInputSchema = z.object({
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type CompleteCardInput = z.infer<typeof CompleteCardInputSchema>;
+
 export const BulkPriorityUpdateItemSchema = z.object({
   cardId: EntityIdSchema,
   priorityScore: PriorityScoreSchema,
