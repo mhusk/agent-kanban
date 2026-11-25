@@ -21,6 +21,7 @@ import {
   computeFieldDiff,
   writeActivityInTransaction,
 } from '../services/activity.js';
+import { writeEventInTransaction } from '../services/events.js';
 import { runIdempotentTransaction } from '../services/idempotency.js';
 import type { AuthContext } from '../types/express.js';
 import {
@@ -113,6 +114,14 @@ export async function bulkUpdatePrioritiesHandler(
 
         tx.set(cardRef, nextCard);
         writeActivityInTransaction(tx, db, activity);
+        writeEventInTransaction(tx, db, {
+          type: 'card.updated',
+          card: nextCard,
+          auth,
+          payload: { diff },
+          note: input.note ?? null,
+          createdAt: nowIso,
+        });
         updatedCards.push(nextCard);
       }
 
@@ -200,6 +209,14 @@ export async function bulkUpdateCardsHandler(
 
         tx.set(cardRef, nextCard);
         writeActivityInTransaction(tx, db, activity);
+        writeEventInTransaction(tx, db, {
+          type: 'card.updated',
+          card: nextCard,
+          auth,
+          payload: { diff },
+          note: input.note ?? null,
+          createdAt: nowIso,
+        });
         updatedCards.push(nextCard);
       }
 

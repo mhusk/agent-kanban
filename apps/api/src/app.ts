@@ -14,6 +14,7 @@ import { AppError, parseWithSchema, type ErrorResponseBody } from './lib/errors.
 import { createAgentConnectionsRouter } from './routes/agentConnections.js';
 import { createCardsRouter } from './routes/cards.js';
 import { createDevAuthRouter } from './routes/devAuth.js';
+import { createEventsRouter } from './routes/events.js';
 import { createMcpRouter } from './routes/mcp.js';
 import { createUsersRouter } from './routes/users.js';
 
@@ -185,6 +186,7 @@ export function createApp(configOverride?: AppConfig): Application {
   app.use('/api', createUsersRouter(configOverride));
   app.use('/api', createAgentConnectionsRouter(configOverride));
   app.use('/api', createCardsRouter(configOverride));
+  app.use('/api', createEventsRouter(configOverride));
   app.use(createMcpRouter(configOverride));
 
   app.use((req: Request, _res: Response, next: NextFunction) => {

@@ -11,6 +11,7 @@ import {
 import { AppError, parseWithSchema } from '../lib/errors.js';
 import { getDb } from '../lib/firebase.js';
 import { buildActivityEntry, writeActivityInTransaction } from '../services/activity.js';
+import { writeEventInTransaction } from '../services/events.js';
 import type { AuthContext } from '../types/express.js';
 import { assertCardVisible, nextMonotonicIso, parseStoredCard, type HandlerDeps } from './cards.js';
 
@@ -148,6 +149,18 @@ export async function createCardCommentHandler(
     tx.set(cardRef.collection('comments').doc(comment.id), comment);
     tx.update(cardRef, { lastTouchedAt: nowIso });
     writeActivityInTransaction(tx, db, activity);
+    writeEventInTransaction(tx, db, {
+      type: 'card.commented',
+      card: updatedCard,
+      auth,
+      payload: {
+        commentId: comment.id,
+        text: comment.text,
+        mentions: comment.mentions,
+      },
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
 
     return {
       comment,

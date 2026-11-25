@@ -20,6 +20,7 @@ import {
 import { AppError, parseWithSchema } from '../lib/errors.js';
 import { getDb } from '../lib/firebase.js';
 import { buildActivityEntry, writeActivityInTransaction } from '../services/activity.js';
+import { writeEventInTransaction } from '../services/events.js';
 import type { AuthContext } from '../types/express.js';
 import { assertCardVisible, nextMonotonicIso, parseStoredCard, type HandlerDeps } from './cards.js';
 
@@ -77,6 +78,17 @@ async function mutateCardInTransaction<TExtra>(
 
     tx.set(cardRef, validatedCard);
     writeActivityInTransaction(tx, db, activity);
+    writeEventInTransaction(tx, db, {
+      type: 'card.updated',
+      card: validatedCard,
+      auth,
+      payload: {
+        action,
+        diff,
+      },
+      note: note ?? null,
+      createdAt: nowIso,
+    });
 
     return {
       card: validatedCard,

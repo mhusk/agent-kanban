@@ -31,6 +31,7 @@ import {
   computeFieldDiff,
   writeActivityInTransaction,
 } from '../services/activity.js';
+import { writeEventInTransaction } from '../services/events.js';
 import { runIdempotentTransaction } from '../services/idempotency.js';
 import type { AuthContext } from '../types/express.js';
 
@@ -348,6 +349,13 @@ export async function createCardHandler(
 
       tx.set(db.collection('cards').doc(card.id), card);
       writeActivityInTransaction(tx, db, activity);
+      writeEventInTransaction(tx, db, {
+        type: 'card.created',
+        card,
+        auth,
+        note: input.note ?? null,
+        createdAt: nowIso,
+      });
 
       return {
         status: 201,
@@ -658,6 +666,14 @@ export async function updateCardHandler(
 
     tx.set(cardRef, nextCard);
     writeActivityInTransaction(tx, db, activity);
+    writeEventInTransaction(tx, db, {
+      type: 'card.updated',
+      card: nextCard,
+      auth,
+      payload: { diff },
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
 
     return nextCard;
   });
@@ -720,6 +736,17 @@ export async function changeCardStatusHandler(
 
     tx.set(cardRef, nextCard);
     writeActivityInTransaction(tx, db, activity);
+    writeEventInTransaction(tx, db, {
+      type: 'card.status_changed',
+      card: nextCard,
+      auth,
+      payload: {
+        fromStatus: existing.status,
+        toStatus: nextCard.status,
+      },
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
 
     return nextCard;
   });
@@ -776,6 +803,14 @@ export async function archiveCardHandler(
 
     tx.set(cardRef, nextCard);
     writeActivityInTransaction(tx, db, activity);
+    writeEventInTransaction(tx, db, {
+      type: 'card.updated',
+      card: nextCard,
+      auth,
+      payload: { archived: nextCard.archived },
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
 
     return nextCard;
   });
@@ -842,6 +877,18 @@ export async function completeCardHandler(
 
       tx.set(cardRef, nextCard);
       writeActivityInTransaction(tx, db, activity);
+      writeEventInTransaction(tx, db, {
+        type: 'card.completed',
+        card: nextCard,
+        auth,
+        payload: {
+          recurringReset: false,
+          previousDue: existing.due,
+          nextDue: nextCard.due,
+        },
+        note: input.note ?? null,
+        createdAt: nowIso,
+      });
 
       return {
         card: nextCard,
@@ -910,6 +957,18 @@ export async function completeCardHandler(
 
     tx.set(cardRef, nextCard);
     writeActivityInTransaction(tx, db, activity);
+    writeEventInTransaction(tx, db, {
+      type: 'card.completed',
+      card: nextCard,
+      auth,
+      payload: {
+        recurringReset: true,
+        previousDue: existing.due,
+        nextDue,
+      },
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
 
     return {
       card: nextCard,
