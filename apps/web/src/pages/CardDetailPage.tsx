@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CardStatus, Recurrence, RecurrenceUnit, User } from '@agent-kanban/shared';
+import type { Card, CardStatus, Recurrence, RecurrenceUnit, User } from '@agent-kanban/shared';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AttachmentSection } from '../components/AttachmentSection.js';
 import {
@@ -193,11 +193,30 @@ export function CardDetailPage({ user }: { user: User }) {
       changeCardStatus(getAccessToken, cardId, nextStatus, {
         ifUpdatedAt: card?.updatedAt,
       }),
-    onSuccess: async () => {
-      setActionError(null);
-      await invalidateCardData();
+    onMutate: async (nextStatus) => {
+      await queryClient.cancelQueries({ queryKey: ['card', cardId] });
+      const previousCard = queryClient.getQueryData<Card>(['card', cardId]);
+      if (previousCard) {
+        queryClient.setQueryData<Card>(['card', cardId], {
+          ...previousCard,
+          status: nextStatus,
+        });
+      }
+      return { previousCard };
     },
-    onError: handleMutationError,
+    onSuccess: (updatedCard) => {
+      queryClient.setQueryData(['card', cardId], updatedCard);
+      setActionError(null);
+    },
+    onError: (err, _vars, context) => {
+      if (context?.previousCard) {
+        queryClient.setQueryData(['card', cardId], context.previousCard);
+      }
+      handleMutationError(err);
+    },
+    onSettled: () => {
+      void invalidateCardData();
+    },
   });
 
   const completeMutation = useMutation({
@@ -324,7 +343,28 @@ export function CardDetailPage({ user }: { user: User }) {
       itemId: string;
       checked: boolean;
     }) => updateChecklistItem(getAccessToken, cardId, checklistId, itemId, { checked }),
-    onError: (err, variables) => {
+    onMutate: async ({ checklistId, itemId, checked }) => {
+      await queryClient.cancelQueries({ queryKey: ['card', cardId] });
+      const previousCard = queryClient.getQueryData<Card>(['card', cardId]);
+      if (previousCard) {
+        queryClient.setQueryData<Card>(['card', cardId], {
+          ...previousCard,
+          checklists: previousCard.checklists.map((chk) =>
+            chk.id === checklistId
+              ? {
+                  ...chk,
+                  items: chk.items.map((it) => (it.id === itemId ? { ...it, checked } : it)),
+                }
+              : chk,
+          ),
+        });
+      }
+      return { previousCard };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousCard) {
+        queryClient.setQueryData(['card', cardId], context.previousCard);
+      }
       setPendingItemChecks((prev) => {
         const next = { ...prev };
         delete next[variables.itemId];
@@ -340,6 +380,8 @@ export function CardDetailPage({ user }: { user: User }) {
         return next;
       });
       setActionError(null);
+    },
+    onSettled: () => {
       void invalidateCardData();
     },
   });

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { BrowserRouter } from 'react-router-dom';
 import { AccessDeniedView } from './components/AccessDeniedView.js';
 import { AppShell } from './components/AppShell.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { SignInView } from './components/SignInView.js';
 import { fetchCurrentUser, isApiError } from './lib/api.js';
 import { AppAuthProvider, useAppAuth } from './lib/auth.js';
@@ -107,7 +108,11 @@ function AuthenticatedGate() {
     );
   }
 
-  return <AppShell user={meQuery.data} />;
+  return (
+    <ErrorBoundary>
+      <AppShell user={meQuery.data} />
+    </ErrorBoundary>
+  );
 }
 
 export function App() {

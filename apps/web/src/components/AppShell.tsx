@@ -9,6 +9,7 @@ import { CardDetailPage } from '../pages/CardDetailPage.js';
 import { DonePage } from '../pages/DonePage.js';
 import { SettingsPage } from '../pages/SettingsPage.js';
 import { TodoPage } from '../pages/TodoPage.js';
+import { OfflineBanner } from './OfflineBanner.js';
 import { QuickAddModal } from './QuickAddModal.js';
 
 interface TabConfig {
@@ -91,6 +92,8 @@ export function AppShell({ user }: AppShellProps) {
         </div>
       </header>
 
+      <OfflineBanner />
+
       <main className="mx-auto w-full max-w-xl flex-1 px-4 pt-6 pb-24">
         <Routes>
           <Route path="/" element={<TodoPage user={user} />} />
@@ -126,7 +129,7 @@ export function AppShell({ user }: AppShellProps) {
 
       <nav
         aria-label="Primary"
-        className="fixed right-0 bottom-0 left-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur"
+        className="fixed right-0 bottom-0 left-0 z-20 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
       >
         <ul className="mx-auto grid w-full max-w-xl grid-cols-4">
           {TABS.map((tab) => (
