@@ -3,9 +3,11 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { UserSchema, type User } from '@agent-kanban/shared';
 import { assertEmulatorAuthAllowed, getConfig, type AppConfig } from '../config.js';
+import { constantTimeEqualHex, hashApiKey, isApiKeyToken } from '../lib/apiKeys.js';
 import { verifyEmulatorToken } from '../lib/emulatorAuth.js';
 import { AppError } from '../lib/errors.js';
 import { getDb } from '../lib/firebase.js';
+import type { AuthContext } from '../types/express.js';
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -181,6 +183,65 @@ export interface AuthMiddlewareOptions {
   getDbFn?: () => Firestore;
 }
 
+const MAX_AGENT_NAME_LENGTH = 120;
+
+export async function authenticateApiKey(
+  token: string,
+  rawAgentNameHeader: string | undefined,
+  db: Firestore = getDb(),
+): Promise<AuthContext> {
+  const candidateHash = hashApiKey(token);
+  const connSnap = await db
+    .collection('agentConnections')
+    .where('hashedKey', '==', candidateHash)
+    .limit(1)
+    .get();
+
+  const connDoc = connSnap.docs[0];
+  if (!connDoc) {
+    throw new AppError(401, 'INVALID_API_KEY', 'Invalid or revoked API key');
+  }
+
+  const connData = connDoc.data();
+  const storedHash = typeof connData.hashedKey === 'string' ? connData.hashedKey : '';
+  const revoked = connData.revoked === true;
+  if (revoked || !constantTimeEqualHex(storedHash, candidateHash)) {
+    throw new AppError(401, 'INVALID_API_KEY', 'Invalid or revoked API key');
+  }
+
+  const ownerUserId = typeof connData.ownerUserId === 'string' ? connData.ownerUserId : '';
+  const platform = typeof connData.platform === 'string' ? connData.platform.trim() : '';
+  if (!ownerUserId || !platform) {
+    throw new AppError(401, 'INVALID_API_KEY', 'Invalid or revoked API key');
+  }
+
+  const ownerSnap = await db.collection('users').doc(ownerUserId).get();
+  if (!ownerSnap.exists) {
+    throw new AppError(401, 'INVALID_API_KEY', 'Invalid or revoked API key');
+  }
+  const owner = parseUserDocument(ownerSnap.id, ownerSnap.data() ?? {});
+
+  const trimmedAgentName = rawAgentNameHeader?.trim() ?? '';
+  const agentName =
+    trimmedAgentName.length > 0
+      ? trimmedAgentName.slice(0, MAX_AGENT_NAME_LENGTH)
+      : platform.slice(0, MAX_AGENT_NAME_LENGTH);
+
+  return {
+    userId: owner.id,
+    ownerUserId: owner.id,
+    role: owner.role,
+    actorType: 'agent',
+    displayName: owner.displayName,
+    handle: owner.handle,
+    email: owner.email,
+    workosUserId: owner.workosUserId,
+    connectionId: connDoc.id,
+    platform,
+    agentName,
+  };
+}
+
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): RequestHandler {
   const getConfigFn = options.getConfigFn ?? getConfig;
   const getDbFn = options.getDbFn ?? getDb;
@@ -193,6 +254,13 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Reque
       try {
         const config = getConfigFn();
         const token = extractBearerToken(req.header('authorization'));
+
+        if (isApiKeyToken(token)) {
+          req.auth = await authenticateApiKey(token, req.header('x-agent-name'), getDbFn());
+          next();
+          return;
+        }
+
         const identity = await verifyJwt(token, config);
         const user = await resolveAllowlistedUser(identity, getDbFn());
 
@@ -214,6 +282,22 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Reque
     })();
   };
 }
+
+export const requireHumanAuth: RequestHandler = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void => {
+  if (!req.auth) {
+    next(new AppError(401, 'UNAUTHORIZED', 'Authentication required'));
+    return;
+  }
+  if (req.auth.actorType !== 'human') {
+    next(new AppError(403, 'FORBIDDEN', 'Human authentication required'));
+    return;
+  }
+  next();
+};
 
 export const requireAdmin: RequestHandler = (
   req: Request,

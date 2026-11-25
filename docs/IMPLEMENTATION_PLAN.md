@@ -50,7 +50,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M1.6** — PWA Quick-Add (FAB + household sharing default) & full Card Detail view
 
 ### Milestone 2: Agent Connections & Prioritization API
-- [ ] **M2.1** — User-owned Agent Connections, hashed API keys (`ak_...`) & `X-Agent-Name` attribution
+- [x] **M2.1** — User-owned Agent Connections, hashed API keys (`ak_...`) & `X-Agent-Name` attribution
 - [ ] **M2.2** — Bulk priority/field updates, smart queries & workspace snapshot
 - [ ] **M2.3** — PWA Settings: Agent Connection / API Key management & household roster
 
@@ -493,7 +493,7 @@ pnpm ci:verify
 
 ## Milestone 2: Agent Connections & Prioritization API
 
-### - [ ] Step M2.1: User-owned Agent Connections, hashed API keys (`ak_...`) & `X-Agent-Name` attribution
+### - [x] Step M2.1: User-owned Agent Connections, hashed API keys (`ak_...`) & `X-Agent-Name` attribution
 
 **Goal:** Enable any household user to create, rotate, and revoke platform API keys bound to their `ownerUserId`, with full agent attribution on every write.
 

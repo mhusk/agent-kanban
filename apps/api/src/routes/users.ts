@@ -9,7 +9,7 @@ import {
 import type { AppConfig } from '../config.js';
 import { AppError, parseWithSchema } from '../lib/errors.js';
 import { getDb } from '../lib/firebase.js';
-import { createAuthMiddleware, requireAdmin } from '../middleware/auth.js';
+import { createAuthMiddleware, requireAdmin, requireHumanAuth } from '../middleware/auth.js';
 
 function parseStoredUser(id: string, rawData: Record<string, unknown>): User {
   const parsed = UserSchema.safeParse({
@@ -79,6 +79,7 @@ export function createUsersRouter(configOverride?: AppConfig): Router {
   router.post(
     '/admin/users',
     requireAuth,
+    requireHumanAuth,
     requireAdmin,
     (req: Request, res: Response, next: NextFunction) => {
       void (async () => {
