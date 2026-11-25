@@ -11,6 +11,7 @@ import { APP_NAME, SHARED_VERSION } from '@agent-kanban/shared';
 import { ZodError, type ZodType, type ZodTypeDef } from 'zod';
 import { assertEmulatorAuthAllowed, getConfig, type AppConfig } from './config.js';
 import { AppError, parseWithSchema, type ErrorResponseBody } from './lib/errors.js';
+import { createCardsRouter } from './routes/cards.js';
 import { createDevAuthRouter } from './routes/devAuth.js';
 import { createUsersRouter } from './routes/users.js';
 
@@ -180,6 +181,7 @@ export function createApp(configOverride?: AppConfig): Application {
   }
 
   app.use('/api', createUsersRouter(configOverride));
+  app.use('/api', createCardsRouter(configOverride));
 
   app.use((req: Request, _res: Response, next: NextFunction) => {
     next(new AppError(404, 'NOT_FOUND', `Route not found: ${req.method} ${req.path}`));

@@ -4,11 +4,13 @@ import {
   ActivitySchema,
   ActorTypeSchema,
   AgentConnectionSchema,
+  ArchiveCardInputSchema,
   AttachmentSchema,
   BulkCardUpdateSchema,
   BulkPriorityUpdateSchema,
   CardSchema,
   CardStatusSchema,
+  ChangeCardStatusInputSchema,
   ChecklistItemSchema,
   ChecklistSchema,
   CommentSchema,
@@ -204,6 +206,31 @@ describe('Card, Checklist, Link, Recurrence & Bulk schemas', () => {
     expect(updated.priorityScore).toBe(0);
     expect(UpdateCardInputSchema.parse({ priorityScore: 100 }).priorityScore).toBe(100);
     expect(UpdateCardInputSchema.parse({ priorityScore: null }).priorityScore).toBeNull();
+
+    const statusChange = ChangeCardStatusInputSchema.parse({
+      status: 'doing',
+      ifUpdatedAt: NOW,
+      note: 'Picking this up now',
+    });
+    expect(statusChange).toEqual({
+      status: 'doing',
+      ifUpdatedAt: NOW,
+      note: 'Picking this up now',
+    });
+    expect(ChangeCardStatusInputSchema.safeParse({ status: 'paused' }).success).toBe(false);
+
+    expect(ArchiveCardInputSchema.parse({})).toEqual({ archived: true });
+    expect(
+      ArchiveCardInputSchema.parse({
+        archived: false,
+        ifUpdatedAt: NOW,
+        note: 'Restoring card',
+      }),
+    ).toEqual({
+      archived: false,
+      ifUpdatedAt: NOW,
+      note: 'Restoring card',
+    });
   });
 
   it('rejects empty card title, out-of-range priorityScore, and invalid recurrence', () => {

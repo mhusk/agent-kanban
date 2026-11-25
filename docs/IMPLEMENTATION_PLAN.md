@@ -43,7 +43,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 
 ### Milestone 1: Core Card API & Minimal Mobile PWA
 - [x] **M1.1** — Shared helpers: search tokenizer, `@mention` parser, DST-aware due & recurrence engine
-- [ ] **M1.2** — Core Card CRUD, visibility, status transitions, idempotency, `ifUpdatedAt` & activity log
+- [x] **M1.2** — Core Card CRUD, visibility, status transitions, idempotency, `ifUpdatedAt` & activity log
 - [ ] **M1.3** — Checklists CRUD/toggle, link attachments & full-text token search
 - [ ] **M1.4** — Comments with `@mentions` & in-place recurring card resets
 - [ ] **M1.5** — PWA views: Bottom nav, `To-Do` (Top 5 + collapsible), `Active`, `Done`, search & filters
@@ -331,7 +331,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M1.2: Core Card CRUD, visibility, status transitions, idempotency, `ifUpdatedAt` & activity log
+### - [x] Step M1.2: Core Card CRUD, visibility, status transitions, idempotency, `ifUpdatedAt` & activity log
 
 **Goal:** Implement the core Card REST endpoints with strict visibility filtering, concurrency preconditions, idempotency, and automatic activity logging.
 

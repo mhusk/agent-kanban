@@ -170,6 +170,20 @@ export const UpdateCardInputSchema = z.object({
 });
 export type UpdateCardInput = z.infer<typeof UpdateCardInputSchema>;
 
+export const ChangeCardStatusInputSchema = z.object({
+  status: CardStatusSchema,
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type ChangeCardStatusInput = z.infer<typeof ChangeCardStatusInputSchema>;
+
+export const ArchiveCardInputSchema = z.object({
+  archived: z.boolean().optional().default(true),
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type ArchiveCardInput = z.infer<typeof ArchiveCardInputSchema>;
+
 export const BulkPriorityUpdateItemSchema = z.object({
   cardId: EntityIdSchema,
   priorityScore: PriorityScoreSchema,
