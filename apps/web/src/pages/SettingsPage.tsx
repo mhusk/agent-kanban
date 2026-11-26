@@ -21,6 +21,7 @@ import {
   rotateAgentConnection,
   updateSubscription,
 } from '../lib/api.js';
+import { Select } from '../components/Select.js';
 import { useAppAuth } from '../lib/auth.js';
 
 const ALL_EVENT_TYPES: readonly EventType[] = EventTypeSchema.options;
@@ -440,15 +441,15 @@ export function SettingsPage({ user }: { user: User }) {
                 <label htmlFor="member-role" className="block text-xs font-medium text-slate-700">
                   Role
                 </label>
-                <select
+                <Select
                   id="member-role"
                   value={memberRole}
                   onChange={(event) => setMemberRole(event.target.value as UserRole)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                  wrapperClassName="mt-1 w-full"
                 >
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
-                </select>
+                </Select>
               </div>
             </div>
 

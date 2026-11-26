@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Card, CardStatus, Recurrence, RecurrenceUnit, User } from '@agent-kanban/shared';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AttachmentSection } from '../components/AttachmentSection.js';
+import { Select } from '../components/Select.js';
 import {
   addCardLink,
   addChecklistItem,
@@ -770,16 +771,16 @@ export function CardDetailPage({ user }: { user: User }) {
           <label htmlFor="detail-recurrence" className="block text-xs font-semibold text-slate-700">
             Recurrence
           </label>
-          <select
+          <Select
             id="detail-recurrence"
             value={recurrenceKind}
             onChange={(event) => setRecurrenceKind(event.target.value as RecurrenceKind)}
-            className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"
+            wrapperClassName="w-full"
           >
             <option value="none">None</option>
             <option value="cron">Weekly / Cron</option>
             <option value="interval_after_completion">Every N days/weeks/months after done</option>
-          </select>
+          </Select>
 
           {recurrenceKind === 'cron' ? (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -832,16 +833,16 @@ export function CardDetailPage({ user }: { user: User }) {
                 <label htmlFor="detail-interval-unit" className="block text-xs text-slate-600">
                   Unit
                 </label>
-                <select
+                <Select
                   id="detail-interval-unit"
                   value={intervalUnit}
                   onChange={(event) => setIntervalUnit(event.target.value as RecurrenceUnit)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                  wrapperClassName="mt-1 w-full"
                 >
                   <option value="days">days</option>
                   <option value="weeks">weeks</option>
                   <option value="months">months</option>
-                </select>
+                </Select>
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <label htmlFor="detail-interval-tz" className="block text-xs text-slate-600">

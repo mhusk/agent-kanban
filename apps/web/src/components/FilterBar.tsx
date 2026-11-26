@@ -1,5 +1,6 @@
 import type { User } from '@agent-kanban/shared';
 import type { PersonFilterValue } from '../hooks/useFilteredCards.js';
+import { Select } from './Select.js';
 
 export interface FilterBarProps {
   searchText: string;
@@ -48,11 +49,12 @@ export function FilterBar({
           ) : null}
         </div>
 
-        <select
+        <Select
           aria-label="Filter by person"
           value={personFilter}
           onChange={(event) => onPersonFilterChange(event.target.value)}
-          className="min-h-11 shrink-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 sm:max-w-44"
+          wrapperClassName="w-full shrink-0 sm:w-auto sm:max-w-48"
+          className="text-slate-800"
         >
           <option value="all">All people</option>
           <option value="me">Assigned to me</option>
@@ -63,7 +65,7 @@ export function FilterBar({
                 {u.displayName} (@{u.handle})
               </option>
             ))}
-        </select>
+        </Select>
       </div>
 
       {availableTags.length > 0 ? (

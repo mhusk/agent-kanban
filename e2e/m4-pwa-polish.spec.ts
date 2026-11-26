@@ -89,9 +89,47 @@ test.describe('M4.3 PWA Installability, Manifest, Icons, Offline Banner & Polish
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
 
-    const fabBox = await page.getByRole('button', { name: 'New card' }).boundingBox();
+    const fab = page.getByRole('button', { name: 'New card' });
+    const fabBox = await fab.boundingBox();
     expect(fabBox?.width ?? 0).toBeGreaterThanOrEqual(44);
     expect(fabBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+    // FAB SVG icon is centered inside the circular button
+    const fabIconBox = await fab.locator('svg').boundingBox();
+    expect(fabBox).not.toBeNull();
+    expect(fabIconBox).not.toBeNull();
+    if (fabBox && fabIconBox) {
+      const fabCenterX = fabBox.x + fabBox.width / 2;
+      const fabCenterY = fabBox.y + fabBox.height / 2;
+      const iconCenterX = fabIconBox.x + fabIconBox.width / 2;
+      const iconCenterY = fabIconBox.y + fabIconBox.height / 2;
+      expect(Math.abs(fabCenterX - iconCenterX)).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(fabCenterY - iconCenterY)).toBeLessThanOrEqual(1.5);
+    }
+
+    // Styled select suppresses native arrow and reserves right padding for the chevron
+    const personSelectStyles = await page
+      .getByRole('combobox', { name: 'Filter by person' })
+      .evaluate((el) => {
+        const win = globalThis as unknown as {
+          getComputedStyle: (node: unknown) => { appearance: string; paddingRight: string };
+        };
+        const style = win.getComputedStyle(el);
+        return {
+          appearance: style.appearance,
+          paddingRight: parseFloat(style.paddingRight),
+        };
+      });
+    expect(personSelectStyles.appearance).toBe('none');
+    expect(personSelectStyles.paddingRight).toBeGreaterThanOrEqual(32);
+
+    // Navigating to /callback (e.g. post-OAuth redirect) normalizes to '/' and keeps FAB visible
+    await page.goto('/callback?code=test');
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('button', { name: 'New card' })).toBeVisible();
+    await expect(
+      page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'To-Do' }),
+    ).toHaveAttribute('aria-current', 'page');
 
     // Offline banner appears when offline and hides when back online
     await expect(page.getByTestId('offline-banner')).toHaveCount(0);

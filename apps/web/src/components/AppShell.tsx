@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { APP_NAME, type User } from '@agent-kanban/shared';
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { CheckCircle2, Flame, ListTodo, Plus, Settings, type LucideIcon } from 'lucide-react';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { fetchHouseholdUsers } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
 import { ActivePage } from '../pages/ActivePage.js';
@@ -16,13 +17,14 @@ interface TabConfig {
   to: string;
   label: string;
   title: string;
+  icon: LucideIcon;
 }
 
 const TABS: readonly TabConfig[] = [
-  { to: '/', label: 'To-Do', title: 'To-Do' },
-  { to: '/active', label: 'Active', title: 'Active' },
-  { to: '/done', label: 'Done', title: 'Done' },
-  { to: '/settings', label: 'Settings', title: 'Settings' },
+  { to: '/', label: 'To-Do', title: 'To-Do', icon: ListTodo },
+  { to: '/active', label: 'Active', title: 'Active', icon: Flame },
+  { to: '/done', label: 'Done', title: 'Done', icon: CheckCircle2 },
+  { to: '/settings', label: 'Settings', title: 'Settings', icon: Settings },
 ] as const;
 
 export interface AppShellProps {
@@ -101,7 +103,7 @@ export function AppShell({ user }: AppShellProps) {
           <Route path="/done" element={<DonePage user={user} />} />
           <Route path="/settings" element={<SettingsPage user={user} />} />
           <Route path="/cards/:id" element={<CardDetailPage user={user} />} />
-          <Route path="*" element={<TodoPage user={user} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         <p className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
@@ -114,9 +116,9 @@ export function AppShell({ user }: AppShellProps) {
           type="button"
           aria-label="New card"
           onClick={() => setQuickAddOpen(true)}
-          className="fixed right-4 bottom-20 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-sky-700 text-2xl font-semibold text-white shadow-lg transition hover:bg-sky-800 sm:right-8"
+          className="fixed right-4 bottom-20 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-sky-700 text-white shadow-lg transition hover:bg-sky-800 active:scale-95 sm:right-8"
         >
-          +
+          <Plus className="h-6 w-6 shrink-0" strokeWidth={2.5} aria-hidden="true" />
         </button>
       ) : null}
 
@@ -132,24 +134,28 @@ export function AppShell({ user }: AppShellProps) {
         className="fixed right-0 bottom-0 left-0 z-20 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
       >
         <ul className="mx-auto grid w-full max-w-xl grid-cols-4">
-          {TABS.map((tab) => (
-            <li key={tab.to}>
-              <NavLink
-                to={tab.to}
-                end={tab.to === '/'}
-                className={({ isActive }) =>
-                  [
-                    'flex min-h-14 items-center justify-center text-xs font-semibold transition',
-                    isActive
-                      ? 'border-t-2 border-sky-600 text-sky-700'
-                      : 'border-t-2 border-transparent text-slate-600 hover:text-slate-900',
-                  ].join(' ')
-                }
-              >
-                {tab.label}
-              </NavLink>
-            </li>
-          ))}
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <li key={tab.to}>
+                <NavLink
+                  to={tab.to}
+                  end={tab.to === '/'}
+                  className={({ isActive }) =>
+                    [
+                      'flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
+                      isActive
+                        ? 'border-t-2 border-sky-600 text-sky-700'
+                        : 'border-t-2 border-transparent text-slate-600 hover:text-slate-900',
+                    ].join(' ')
+                  }
+                >
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  <span>{tab.label}</span>
+                </NavLink>
+              </li>
+            );
+          })}
         </ul>
       </nav>
     </div>

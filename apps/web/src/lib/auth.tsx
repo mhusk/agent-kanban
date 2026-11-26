@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AuthKitProvider, useAuth as useWorkOSAuth } from '@workos-inc/authkit-react';
+import { useNavigate } from 'react-router-dom';
 import { isApiError, requestDevToken, type DevTokenRequest } from './api.js';
 
 export type WebAuthMode = 'emulator' | 'workos';
@@ -316,6 +317,11 @@ function UnconfiguredWorkOSProvider({ children }: { children: ReactNode }) {
 }
 
 export function AppAuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const handleRedirectCallback = useCallback(() => {
+    navigate('/', { replace: true });
+  }, [navigate]);
+
   const mode = resolveWebAuthMode();
 
   if (mode === 'emulator') {
@@ -335,9 +341,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
       redirectUri={redirectUri}
       apiHostname={resolveWorkOSApiHostname()}
       devMode={resolveWorkOSDevMode()}
-      onRedirectCallback={() => {
-        window.history.replaceState({}, document.title, '/');
-      }}
+      onRedirectCallback={handleRedirectCallback}
     >
       <WorkOSAuthBridge>{children}</WorkOSAuthBridge>
     </AuthKitProvider>
