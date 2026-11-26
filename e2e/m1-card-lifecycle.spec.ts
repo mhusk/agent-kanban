@@ -120,8 +120,11 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await main.getByRole('button', { name: 'Post comment' }).click();
     await expect(main.getByText('Hey @sam bring sunscreen', { exact: true })).toBeVisible();
 
-    // Change status to Doing
-    await main.getByRole('button', { name: 'Doing' }).click();
+    // Change status to Doing and wait for the API write to complete before reloading
+    await Promise.all([
+      page.waitForResponse((res) => res.url().includes('/status') && res.status() === 200),
+      main.getByRole('button', { name: 'Doing' }).click(),
+    ]);
     await expect(main.getByRole('button', { name: 'Doing' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -183,6 +186,11 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await expect(activityLog).toContainText('card.commented');
     await expect(activityLog).toContainText('changed status from To-Do to Doing');
     await expect(activityLog).toContainText('added link "Trail map"');
+
+    const refreshActivityBtn = main.getByRole('button', { name: 'Refresh activity log' });
+    await expect(refreshActivityBtn).toBeVisible();
+    await refreshActivityBtn.click();
+    await expect(activityLog).toContainText('card.completed');
 
     // Return to To-Do board and confirm comment count badge appears on the card row
     await page.getByRole('link', { name: 'To-Do' }).click();

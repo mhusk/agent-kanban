@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Card, CardStatus, RecurrenceUnit, User } from '@agent-kanban/shared';
+import { RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AttachmentSection } from '../components/AttachmentSection.js';
 import { MentionTextarea } from '../components/MentionTextarea.js';
@@ -1314,48 +1315,69 @@ export function CardDetailPage({ user }: { user: User }) {
       </section>
 
       {/* Collapsible Activity Log (native <details> without heading inside <summary>) */}
-      <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
-          Activity Log ({activity.length})
-        </summary>
-        {activity.length === 0 ? (
-          <p className="mt-3 text-xs text-slate-500">No activity recorded yet.</p>
-        ) : (
-          <ul className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
-            {activity.map((entry) => {
-              const summary = formatActivitySummary(entry, usersById);
-              return (
-                <li key={entry.id} className="text-xs text-slate-700">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span>
-                      <strong className="font-semibold text-slate-900">
-                        {formatActorLabel(entry, usersById)}
-                      </strong>{' '}
-                      {summary.headline}{' '}
-                      <code className="rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-500">
-                        {entry.action}
-                      </code>
-                    </span>
-                    <span className="shrink-0 text-slate-500">
-                      {formatDateTime(entry.createdAt)}
-                    </span>
-                  </div>
-                  {summary.details.length > 0 ? (
-                    <ul className="mt-1 space-y-0.5 pl-3 text-slate-600">
-                      {summary.details.map((detail, idx) => (
-                        <li key={idx}>• {detail}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {entry.note ? (
-                    <p className="mt-0.5 pl-3 text-slate-600">Note: {entry.note}</p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </details>
+      <div className="relative rounded-2xl border border-slate-200 bg-white shadow-xs">
+        <button
+          type="button"
+          aria-label="Refresh activity log"
+          disabled={activityQuery.isFetching || commentsQuery.isFetching}
+          onClick={() => {
+            void Promise.all([activityQuery.refetch(), commentsQuery.refetch()]);
+          }}
+          className="absolute top-2.5 right-3 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+        >
+          <RefreshCw
+            className={[
+              'h-3.5 w-3.5 shrink-0',
+              activityQuery.isFetching || commentsQuery.isFetching ? 'animate-spin' : '',
+            ].join(' ')}
+            aria-hidden="true"
+          />
+          Refresh
+        </button>
+
+        <details className="p-4">
+          <summary className="cursor-pointer list-none pr-24 text-sm font-semibold text-slate-800">
+            Activity Log ({activity.length})
+          </summary>
+          {activity.length === 0 ? (
+            <p className="mt-3 text-xs text-slate-500">No activity recorded yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
+              {activity.map((entry) => {
+                const summary = formatActivitySummary(entry, usersById);
+                return (
+                  <li key={entry.id} className="text-xs text-slate-700">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span>
+                        <strong className="font-semibold text-slate-900">
+                          {formatActorLabel(entry, usersById)}
+                        </strong>{' '}
+                        {summary.headline}{' '}
+                        <code className="rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-500">
+                          {entry.action}
+                        </code>
+                      </span>
+                      <span className="shrink-0 text-slate-500">
+                        {formatDateTime(entry.createdAt)}
+                      </span>
+                    </div>
+                    {summary.details.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5 pl-3 text-slate-600">
+                        {summary.details.map((detail, idx) => (
+                          <li key={idx}>• {detail}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {entry.note ? (
+                      <p className="mt-0.5 pl-3 text-slate-600">Note: {entry.note}</p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </details>
+      </div>
     </section>
   );
 }
