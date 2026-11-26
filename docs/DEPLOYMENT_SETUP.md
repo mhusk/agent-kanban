@@ -118,6 +118,25 @@ Configure your secrets accordingly:
 ### Gotcha 3: PKCE `Invalid code verifier`
 If you see `400 Bad Request` (`{"error":"invalid_grant","error_description":"Invalid code verifier."}`) on `POST /user_management/authenticate`, the one-time PKCE `code_verifier` in `sessionStorage` did not match the callback `code` (caused by reloading `/callback?code=...`, hitting Back mid-login, or finishing an email verification link in a different tab). Fix by navigating cleanly to `https://<FIREBASE_PROJECT_ID>.web.app/` in a single tab and signing in fresh.
 
+### Gotcha 4: Sign-in Lost on Page Reload (Session Persistence)
+In production AuthKit keeps the refresh token in memory only, so a reload shows the sign-in screen (WorkOS's own cookie means no password is re-entered). Fix with one of the options in [Section 4](#4-secrets-configuration). The localStorage option is the simple default; the custom-domain upgrade below is the more secure long-term setup.
+
+#### Future upgrade: WorkOS custom auth domain (HttpOnly first-party cookie)
+Moves session storage from `localStorage` to an HttpOnly cookie, so an XSS bug can no longer read the refresh token. No code changes are needed; the app already reads `VITE_WORKOS_API_HOSTNAME`.
+
+**Prerequisites:**
+- A domain you own. The `*.web.app` / `*.firebaseapp.com` defaults are Google-owned and cannot be used.
+- A WorkOS **Production** environment (custom domains are not available on Staging).
+- The app and auth domain must share a parent domain, e.g. `kanban.example.com` (app) and `auth.example.com` (WorkOS).
+
+**Steps:**
+1. **App domain:** Firebase Console → Hosting → **Add custom domain** → `kanban.<yourdomain>`; add the DNS records shown and wait for SSL provisioning.
+2. **Auth domain:** WorkOS Dashboard → Authentication → Custom domain → add `auth.<yourdomain>`; add the CNAME and wait until verified.
+3. **Redirects:** add `https://kanban.<yourdomain>/callback` as a Redirect URI; set the app homepage and sign-out redirect to `https://kanban.<yourdomain>`. Update Firebase Auth/CORS allowlists if you restricted origins.
+4. **GitHub:** add Actions **secret** `VITE_WORKOS_API_HOSTNAME=auth.<yourdomain>` (it takes precedence over `VITE_WORKOS_PERSIST_SESSION`; you can then delete that variable).
+5. **Re-check JWT claims:** the custom domain may change the access token `iss` and JWKS URL. Decode a fresh token (e.g., jwt.io), then update the `WORKOS_ISSUER` and `WORKOS_JWKS_URL` secrets to match exactly, or `/api/me` returns `401 INVALID_TOKEN`.
+6. **Deploy and verify:** push to `main`, sign in, reload, and confirm you stay signed in and `/api/me` returns `200`. Existing users sign in once more after the switch.
+
 ---
 
 ## 4. Secrets Configuration
