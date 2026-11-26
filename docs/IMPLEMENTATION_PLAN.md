@@ -65,7 +65,8 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M4.2** — PWA client-side image compression, photo/PDF upload & attachment gallery
 - [x] **M4.3** — PWA installability, icons/manifest, offline banner, optimistic UX & accessibility polish
 - [x] **M4.4** — Public `README.md`, self-hosting guide, prod smoke script & full regression verification
-- [ ] **M4.5 `[HUMAN]`** — Production verification (household PWA install + Chief of Staff live test)
+- [ ] **M4.5 `[HUMAN]`** — Human-guided feature walkthrough & bug-fix pass
+- [ ] **M4.6 `[HUMAN]`** — Final production verification (household PWA install + Chief of Staff live test)
 
 ---
 
@@ -815,7 +816,30 @@ pnpm ci:verify
 
 ---
 
-### - [ ] Step M4.5 `[HUMAN]`: Production verification (household PWA install + Chief of Staff live test)
+### - [ ] Step M4.5 `[HUMAN]`: Human-guided feature walkthrough & bug-fix pass
+
+> **AGENT STOP GATE:** Interactive QA pass led by the user. Work through one functional area at a time; fix reported bugs with regression tests, verify with `pnpm ci:verify`, and deploy/confirm each fix before checking off that area.
+
+**Goal:** Systematically exercise every user-facing and agent-facing feature in the deployed app, capture real-world bugs and UX rough edges, and fix them with automated regression coverage before final v1 launch sign-off.
+
+**Functional Walkthrough Areas:**
+1. - [ ] **Auth, Session & Access Control:** WorkOS sign-in/sign-out, reload/session persistence, unallowlisted email `403` screen, private vs shared card visibility isolation.
+2. - [ ] **Navigation, Mobile Layout & PWA Shell:** Mobile responsiveness (zero horizontal overflow/clipping), bottom nav (`To-Do`, `Active`, `Done`, `Settings`), FAB placement, Home Screen install/icons, offline banner, loading/error states.
+3. - [ ] **Board Views, Search & Filters:** `To-Do` (Top 5 + collapsible rest, priority ordering, due badges), `Active` (`Doing` + `Blocked`), `Done` (completed + archived view), search bar, tag/assignee/visibility filters.
+4. - [ ] **Quick-Add & Card Detail Core Editing:** Quick-Add modal defaults & sharing toggle, editing title/description/tags/assigned/aware/due/dueFirm/dueHasTime, status pills, optimistic updates, archive/unarchive, save feedback & error handling.
+5. - [ ] **Checklists, Links & Comments (`@mentions`):** Checklist create/rename/delete, item add/toggle/delete, link add/open/remove, comments with `@handle` mentions, Activity Log accuracy.
+6. - [ ] **Recurrence & Scheduled Jobs:** Cron and interval-after-completion rules, `Complete & Reset` (checklist reset + next due date in `HOUSEHOLD_TIMEZONE`), `scanDueCards` (`due_soon`/`overdue`) and `dailyMaintenance` behavior.
+7. - [ ] **File Attachments (Photos & PDFs):** Photo capture/upload & client-side compression, PDF upload, 10 MB/MIME error handling, thumbnail grid, signed download URL viewing, deletion (Storage + Firestore), live GCS CORS.
+8. - [ ] **Settings, Household Roster & Agent Connections (API Keys):** Profile info, adding/viewing household members (admin vs member), creating copy-once API keys, reload hiding secret, rotating & revoking keys, `X-Agent-Name` attribution.
+9. - [ ] **Webhooks, Events & MCP Integration:** Settings webhook CRUD + Pause/Enable, live `onEventCreated` delivery (`Bearer`/`HMAC`), filters & visibility isolation, agent loop suppression (zero webhooks on agent writes), `GET /api/events` polling, `/mcp` client tools.
+
+**Bug-Fix Loop & Validation Gate:**
+- For every batch of bugs fixed: add or update automated tests covering the root cause, run `pnpm ci:verify`, commit directly to `main`, push to deploy, and confirm live with the user before checking off that area (`- [x]`).
+- Step M4.5 is checked off only after all 9 walkthrough areas are marked `- [x]`.
+
+---
+
+### - [ ] Step M4.6 `[HUMAN]`: Final production verification (household PWA install + Chief of Staff live test)
 
 > **AGENT STOP GATE:** Final human verification milestone for v1 launch.
 
