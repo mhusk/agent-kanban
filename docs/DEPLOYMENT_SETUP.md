@@ -31,6 +31,8 @@ This guide captures the manual provisioning steps and real-world gotchas for dep
    - `Artifact Registry API`
    - `Eventarc API`
    - `Secret Manager API`
+   - `Cloud Scheduler API`
+   - `Cloud Pub/Sub API`
 5. Create a deploy service account (e.g., `github-actions-deploy`) with these IAM roles:
    - `Firebase Admin` (`roles/firebase.admin`)
    - `Service Account User` (`roles/iam.serviceAccountUser`)
@@ -40,11 +42,18 @@ This guide captures the manual provisioning steps and real-world gotchas for dep
    - `Cloud Build Editor` (`roles/cloudbuild.builds.editor`)
    - `Service Usage Consumer` (`roles/serviceusage.serviceUsageConsumer`)
    - `Secret Manager Admin` (`roles/secretmanager.admin`) *(allows CI `firebase deploy` to grant functions access to `WEBHOOK_ENCRYPTION_KEY`)*
+   - `Cloud Scheduler Admin` (`roles/cloudscheduler.admin`) *(required to create/update scheduled v2 functions: `retryWebhooks`, `scanDueCards`, `dailyMaintenance`)*
+   - `Security Reviewer` (`roles/iam.securityReviewer`) *(recommended — allows CI `firebase deploy` to verify project IAM bindings without granting IAM write access)*
 6. Generate a JSON key, store it **outside** the repository while configuring GitHub Secrets and bootstrapping users, and delete the local file once finished.
 7. Grant the Cloud Functions v2 runtime identity (your project's default Compute Engine service account) these roles in IAM:
    - `Service Account Token Creator` (`roles/iam.serviceAccountTokenCreator`) — required for `getSignedUrl()` to sign GCS upload/download URLs on attachment endpoints.
    - `Secret Manager Secret Accessor` (`roles/secretmanager.secretAccessor`) on `WEBHOOK_ENCRYPTION_KEY`.
-8. Configure CORS on your Firebase Cloud Storage bucket so browser uploads (`PUT`) from the PWA succeed:
+   - `Eventarc Event Receiver` (`roles/eventarc.eventReceiver`) — required for the Firestore trigger `onEventCreated`.
+   - `Cloud Run Invoker` (`roles/run.invoker`) — required for Eventarc and Cloud Scheduler to invoke 2nd Gen functions.
+8. Verify Google-managed service agents (check **Include Google-provided role grants** at the top of **IAM & Admin → IAM**, or click **Grant access**):
+   - **Pub/Sub Service Agent** (`service-<PROJECT_NUMBER>` on `gcp-sa-pubsub.iam.gserviceaccount.com`): `Service Account Token Creator` (`roles/iam.serviceAccountTokenCreator`).
+   - **Eventarc Service Agent** (`service-<PROJECT_NUMBER>` on `gcp-sa-eventarc.iam.gserviceaccount.com`): `Eventarc Service Agent` (`roles/eventarc.serviceAgent`).
+9. Configure CORS on your Firebase Cloud Storage bucket so browser uploads (`PUT`) from the PWA succeed:
    ```bash
    cat > /tmp/cors.json <<'EOF'
    [
@@ -60,6 +69,14 @@ This guide captures the manual provisioning steps and real-world gotchas for dep
    rm /tmp/cors.json
    ```
    *(Check your Storage bucket URI in Firebase Console → Storage — older projects use `<FIREBASE_PROJECT_ID>.appspot.com` while newer projects use `<FIREBASE_PROJECT_ID>.firebasestorage.app`.)*
+
+### Cloud Functions v2 First-Deploy Gotchas
+
+- **"We failed to modify the IAM policy for the project":** Because `github-actions-deploy` runs with least privilege (without `Project IAM Admin`), the first deploy that introduces Firestore triggers (`onEventCreated`) or Cloud Scheduler jobs cannot auto-add missing IAM bindings. Pre-grant the runtime and service-agent roles in Steps 7–8 once as project owner before deploying.
+- **Eventarc Service Agent propagation delay:** On the very first deploy introducing a Firestore trigger, Firebase generates the Eventarc service identity and Cloud Functions creation may transiently fail with `400 Permission denied while using the Eventarc Service Agent`. Confirm the binding in Step 8, wait 2–3 minutes for IAM propagation, and re-run the deploy job.
+- **`cloudscheduler.jobs.update` 403 error:** Deploying `onSchedule(...)` functions requires `Cloud Scheduler Admin` (`roles/cloudscheduler.admin`) on the deploy service account, not just `Cloud Functions Admin`.
+- **Non-fatal `firebaseextensions.googleapis.com` warning:** `firebase deploy` may log an informational failure while checking for Firebase Extensions if that API is not enabled. Unless you install Firebase Extensions, it skips cleanly and is safe to ignore.
+- **Deploy at infrastructure boundaries:** Emulators do not exercise GCP IAM, Secret Manager bindings, Eventarc service identities, Cloud Scheduler permissions, or GCS bucket CORS. Treat a live deploy + smoke check as a required checkpoint immediately after each step that introduces a new cloud primitive rather than batching several new triggers, secrets, and storage services before deploying.
 
 ---
 
