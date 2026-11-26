@@ -6,6 +6,7 @@ import {
   AttachmentSchema,
   EntityIdSchema,
   MAX_ATTACHMENT_SIZE_BYTES,
+  UpdateAttachmentInputSchema,
   UploadUrlRequestSchema,
   type AllowedAttachmentMimeType,
   type Attachment,
@@ -169,7 +170,9 @@ async function mintSignedTransferUrl(params: {
     version: 'v4',
     action: params.action,
     expires: params.expiresAtMs,
-    ...(params.action === 'write' ? { contentType: params.contentType } : {}),
+    ...(params.action === 'write'
+      ? { contentType: params.contentType }
+      : { responseDisposition: `inline; filename="${sanitizeFileName(params.fileName)}"` }),
   });
   return url;
 }
@@ -449,6 +452,77 @@ export async function getAttachmentDownloadUrlHandler(
     expiresAt,
     attachment,
   };
+}
+
+export async function renameCardAttachmentHandler(
+  auth: AuthContext,
+  rawCardId: unknown,
+  rawAttachmentId: unknown,
+  rawInput: unknown,
+  deps: AttachmentHandlerDeps = {},
+): Promise<{ attachment: Attachment }> {
+  const cardId = parseWithSchema(EntityIdSchema, rawCardId, 'Invalid card ID');
+  const attachmentId = parseWithSchema(EntityIdSchema, rawAttachmentId, 'Invalid attachment ID');
+  const input = parseWithSchema(
+    UpdateAttachmentInputSchema,
+    rawInput,
+    'Invalid attachment rename payload',
+  );
+  const db = deps.db ?? getDb();
+  const getNow = deps.now ?? (() => new Date());
+
+  const cardRef = db.collection('cards').doc(cardId);
+  const attRef = cardRef.collection('attachments').doc(attachmentId);
+
+  const updatedAttachment = await db.runTransaction(async (tx) => {
+    const cardSnap = await tx.get(cardRef);
+    const existingCard = assertCardVisible(
+      cardSnap.exists ? parseStoredCard(cardSnap.id, cardSnap.data() ?? {}) : null,
+      auth.ownerUserId,
+    );
+
+    const attSnap = await tx.get(attRef);
+    if (!attSnap.exists) {
+      throw new AppError(404, 'ATTACHMENT_NOT_FOUND', 'Attachment not found');
+    }
+
+    const existingAttachment = parseStoredAttachment(attSnap.id, attSnap.data() ?? {});
+    const nextAttachment = AttachmentSchema.parse({
+      ...existingAttachment,
+      fileName: input.fileName,
+    });
+
+    if (nextAttachment.fileName !== existingAttachment.fileName) {
+      const nowIso = nextMonotonicIso(existingCard.lastTouchedAt, getNow());
+      const activity = buildActivityEntry({
+        cardId: existingCard.id,
+        visibleToUserIds: existingCard.visibleToUserIds,
+        auth,
+        action: 'card.attachment_renamed',
+        diff: {
+          attachment: {
+            from: {
+              id: existingAttachment.id,
+              fileName: existingAttachment.fileName,
+            },
+            to: {
+              id: nextAttachment.id,
+              fileName: nextAttachment.fileName,
+            },
+          },
+        },
+        createdAt: nowIso,
+      });
+
+      tx.update(attRef, { fileName: nextAttachment.fileName });
+      tx.update(cardRef, { lastTouchedAt: nowIso });
+      writeActivityInTransaction(tx, db, activity);
+    }
+
+    return nextAttachment;
+  });
+
+  return { attachment: updatedAttachment };
 }
 
 export async function deleteCardAttachmentHandler(

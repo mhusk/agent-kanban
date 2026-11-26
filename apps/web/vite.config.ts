@@ -55,6 +55,7 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/mcp\b/, /^\/\.well-known\//],
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        globIgnores: ['**/*heic*'],
       },
     }),
   ],

@@ -23,6 +23,7 @@ export const ActivityActionSchema = z.enum([
   'card.link_added',
   'card.link_removed',
   'card.attachment_added',
+  'card.attachment_renamed',
   'card.attachment_deleted',
 ]);
 export type ActivityAction = z.infer<typeof ActivityActionSchema>;

@@ -261,6 +261,38 @@ describe('GCS signed-URL attachment API (Emulator)', () => {
     const uploadedPng = await uploadAndVerify('receipt.png', 'image/png', pngBytes);
     const uploadedPdf = await uploadAndVerify('manual.pdf', 'application/pdf', pdfBytes);
 
+    // Rename PNG attachment and verify persistence, auth isolation, validation, and activity log
+    const samRename = await apiRequest(
+      `/api/cards/${alexPrivateCardId}/attachments/${uploadedPng.attachmentId}`,
+      {
+        method: 'PATCH',
+        token: samToken,
+        body: { fileName: 'hacked.png' },
+      },
+    );
+    expect(samRename.status).toBe(404);
+
+    const invalidRename = await apiRequest(
+      `/api/cards/${alexPrivateCardId}/attachments/${uploadedPng.attachmentId}`,
+      {
+        method: 'PATCH',
+        token: alexToken,
+        body: { fileName: '   ' },
+      },
+    );
+    expect(invalidRename.status).toBe(400);
+
+    const renameRes = await apiRequest<{ attachment: Attachment }>(
+      `/api/cards/${alexPrivateCardId}/attachments/${uploadedPng.attachmentId}`,
+      {
+        method: 'PATCH',
+        token: alexToken,
+        body: { fileName: 'kitchen-receipt.png' },
+      },
+    );
+    expect(renameRes.status).toBe(200);
+    expect(renameRes.data.attachment.fileName).toBe('kitchen-receipt.png');
+
     const listRes = await apiRequest<{ attachments: Attachment[] }>(
       `/api/cards/${alexPrivateCardId}/attachments`,
       { token: alexToken },
@@ -270,6 +302,7 @@ describe('GCS signed-URL attachment API (Emulator)', () => {
       uploadedPng.attachmentId,
       uploadedPdf.attachmentId,
     ]);
+    expect(listRes.data.attachments[0]?.fileName).toBe('kitchen-receipt.png');
 
     // Delete both attachments and verify Storage objects and Firestore records are removed
     for (const item of [uploadedPng, uploadedPdf]) {
@@ -299,6 +332,7 @@ describe('GCS signed-URL attachment API (Emulator)', () => {
     expect(actRes.status).toBe(200);
     const actions = actRes.data.activity.map((a) => a.action);
     expect(actions).toContain('card.attachment_added');
+    expect(actions).toContain('card.attachment_renamed');
     expect(actions).toContain('card.attachment_deleted');
   });
 });

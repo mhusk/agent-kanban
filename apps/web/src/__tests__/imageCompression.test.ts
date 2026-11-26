@@ -96,11 +96,43 @@ describe('compressAttachmentFile', () => {
     await expect(compressAttachmentFile(emptyFile)).rejects.toThrow(/empty/i);
   });
 
-  it('falls back to original HEIC upload when browser cannot decode HEIC and enforces limits', async () => {
+  it('converts HEIC to JPEG when native browser decode fails, and falls back to raw HEIC if conversion also fails', async () => {
     const heicFile = new File([new Uint8Array(256_000)], 'photo.heic', { type: 'image/heic' });
+    let convertCalled = false;
+    const convertedResult = await compressAttachmentFile(heicFile, {
+      convertHeic: async (_file, quality) => {
+        convertCalled = true;
+        expect(quality).toBe(0.82);
+        return new Blob([new Uint8Array(90_000)], { type: 'image/jpeg' });
+      },
+      decodeImage: async (candidate): Promise<DecodedImage> => {
+        if (candidate.type === 'image/heic') {
+          throw new Error('The source image could not be decoded.');
+        }
+        return {
+          width: 4000,
+          height: 3000,
+          source: {} as CanvasImageSource,
+        };
+      },
+      encodeImage: async (_decoded, width, height, outputMime) => {
+        expect(width).toBe(1920);
+        expect(height).toBe(1440);
+        return new Blob([new Uint8Array(80_000)], { type: outputMime });
+      },
+    });
+    expect(convertCalled).toBe(true);
+    expect(convertedResult.compressed).toBe(true);
+    expect(convertedResult.contentType).toBe('image/jpeg');
+    expect(convertedResult.fileName).toBe('photo.jpg');
+    expect(convertedResult.originalSize).toBe(256_000);
+
     const heicResult = await compressAttachmentFile(heicFile, {
       decodeImage: async () => {
         throw new Error('The source image could not be decoded.');
+      },
+      convertHeic: async () => {
+        throw new Error('Decoder unavailable');
       },
     });
     expect(heicResult.compressed).toBe(false);
@@ -114,6 +146,9 @@ describe('compressAttachmentFile', () => {
       compressAttachmentFile(hugeHeic, {
         decodeImage: async () => {
           throw new Error('The source image could not be decoded.');
+        },
+        convertHeic: async () => {
+          throw new Error('Decoder unavailable');
         },
       }),
     ).rejects.toThrow(/10 MB upload limit/);

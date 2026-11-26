@@ -32,3 +32,8 @@ export const UploadUrlRequestSchema = z.object({
   size: z.number().int().min(1).max(MAX_ATTACHMENT_SIZE_BYTES),
 });
 export type UploadUrlRequest = z.infer<typeof UploadUrlRequestSchema>;
+
+export const UpdateAttachmentInputSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+});
+export type UpdateAttachmentInput = z.infer<typeof UpdateAttachmentInputSchema>;

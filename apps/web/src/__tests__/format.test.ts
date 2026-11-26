@@ -138,6 +138,21 @@ describe('formatActivitySummary', () => {
     expect(
       formatActivitySummary(
         {
+          action: 'card.attachment_renamed',
+          diff: {
+            attachment: {
+              from: { fileName: 'IMG_0897.jpg' },
+              to: { fileName: 'Kitchen receipt.jpg' },
+            },
+          },
+        },
+        USERS_BY_ID,
+      ).headline,
+    ).toBe('renamed attachment "IMG_0897.jpg" to "Kitchen receipt.jpg"');
+
+    expect(
+      formatActivitySummary(
+        {
           action: 'card.completed',
           diff: {
             status: { from: 'doing', to: 'todo' },

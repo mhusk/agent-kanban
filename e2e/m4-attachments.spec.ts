@@ -145,12 +145,30 @@ test.describe('M4.2 PWA Attachments: Photo compression, PDF upload & gallery', (
     const imgResponse = await request.get(imgSrc!);
     expect(imgResponse.status()).toBe(200);
 
-    // 4. Delete both attachments and verify gone across reload
-    await regionAfterReload.getByRole('button', { name: 'Delete heater-label.png' }).click();
-    await expect(regionAfterReload.getByRole('img', { name: 'heater-label.png' })).toHaveCount(0);
+    // 3b. Open in-browser lightbox preview and close it
+    await regionAfterReload.getByRole('button', { name: 'Preview heater-label.png' }).click();
+    const lightbox = page.getByRole('dialog', { name: 'heater-label.png' });
+    await expect(lightbox).toBeVisible();
+    await expect(lightbox.getByRole('img', { name: 'heater-label.png' })).toBeVisible();
+    await lightbox.getByRole('button', { name: 'Close preview' }).click();
+    await expect(lightbox).toBeHidden();
 
-    await regionAfterReload.getByRole('button', { name: 'Delete warranty.pdf' }).click();
-    await expect(regionAfterReload.getByText('warranty.pdf')).toHaveCount(0);
+    // 3c. Rename PNG attachment and confirm persistence across reload
+    await regionAfterReload.getByRole('button', { name: 'Rename heater-label.png' }).click();
+    await regionAfterReload.getByLabel('Attachment name').fill('boiler-label.png');
+    await regionAfterReload.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(regionAfterReload.getByText('boiler-label.png')).toBeVisible();
+
+    await page.reload();
+    const regionAfterRename = page.getByRole('region', { name: /Attachments/i });
+    await expect(regionAfterRename.getByRole('img', { name: 'boiler-label.png' })).toBeVisible();
+
+    // 4. Delete both attachments and verify gone across reload
+    await regionAfterRename.getByRole('button', { name: 'Delete boiler-label.png' }).click();
+    await expect(regionAfterRename.getByRole('img', { name: 'boiler-label.png' })).toHaveCount(0);
+
+    await regionAfterRename.getByRole('button', { name: 'Delete warranty.pdf' }).click();
+    await expect(regionAfterRename.getByText('warranty.pdf')).toHaveCount(0);
 
     await page.reload();
     await expect(page.getByRole('region', { name: /Attachments/i })).toContainText('(0)');

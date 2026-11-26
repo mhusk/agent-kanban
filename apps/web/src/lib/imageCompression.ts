@@ -34,6 +34,7 @@ export interface ImageCompressionDeps {
     outputMime: 'image/jpeg' | 'image/webp',
     quality: number,
   ) => Promise<Blob>;
+  convertHeic?: (file: File, quality: number) => Promise<Blob>;
 }
 
 export interface CompressedAttachmentResult {
@@ -187,6 +188,11 @@ function resolveFileMime(file: File): string {
   return '';
 }
 
+async function defaultConvertHeic(file: File, quality: number): Promise<Blob> {
+  const { heicTo } = await import('heic-to');
+  return heicTo({ blob: file, type: 'image/jpeg', quality });
+}
+
 /**
  * Compresses image attachments exceeding `1920px` on the longest edge or re-encodes
  * large/non-allowlisted images to JPEG (`quality: 0.82`). Passes PDFs through untouched
@@ -229,11 +235,42 @@ export async function compressAttachmentFile(
 
   const decodeFn = deps.decodeImage ?? defaultDecodeImage;
   const encodeFn = deps.encodeImage ?? defaultEncodeImage;
+  const convertHeicFn = deps.convertHeic ?? defaultConvertHeic;
+
+  let workingFile = file;
+  let workingMime = mime;
+  let wasHeicConverted = false;
   let decoded: DecodedImage;
+
   try {
-    decoded = await decodeFn(file);
+    decoded = await decodeFn(workingFile);
   } catch {
-    if (ALLOWLISTED_MIME_SET.has(mime)) {
+    if (mime === 'image/heic') {
+      try {
+        const jpegBlob = await convertHeicFn(file, quality);
+        workingFile = new File([jpegBlob], replaceExtension(file.name, 'jpg'), {
+          type: 'image/jpeg',
+          lastModified: file.lastModified,
+        });
+        workingMime = 'image/jpeg';
+        wasHeicConverted = true;
+        decoded = await decodeFn(workingFile);
+      } catch {
+        if (file.size <= maxBytes) {
+          return {
+            file,
+            contentType: 'image/heic',
+            fileName: file.name,
+            size: file.size,
+            compressed: false,
+            originalSize: file.size,
+          };
+        }
+        throw new Error(
+          `Your browser cannot compress "${file.name}" (${formatFileSize(file.size)}), which exceeds the 10 MB upload limit. Convert it to JPEG or upload from Safari/iOS.`,
+        );
+      }
+    } else if (ALLOWLISTED_MIME_SET.has(mime)) {
       if (file.size <= maxBytes) {
         return {
           file,
@@ -247,26 +284,27 @@ export async function compressAttachmentFile(
       throw new Error(
         `Your browser cannot compress "${file.name}" (${formatFileSize(file.size)}), which exceeds the 10 MB upload limit. Convert it to JPEG or upload from Safari/iOS.`,
       );
+    } else {
+      throw new Error(
+        `Your browser cannot decode "${file.name}" (${mime}). Please convert it to JPEG, PNG, or WebP.`,
+      );
     }
-    throw new Error(
-      `Your browser cannot decode "${file.name}" (${mime}). Please convert it to JPEG, PNG, or WebP.`,
-    );
   }
 
   try {
     const scaled = computeScaledDimensions(decoded.width, decoded.height, maxEdgePx);
-    const isAllowlistedOriginal = ALLOWLISTED_MIME_SET.has(mime);
+    const isAllowlistedOriginal = ALLOWLISTED_MIME_SET.has(workingMime);
 
     const shouldAttemptEncode =
-      scaled.resized || file.size > REENCODE_BYTES_THRESHOLD || !isAllowlistedOriginal;
+      scaled.resized || workingFile.size > REENCODE_BYTES_THRESHOLD || !isAllowlistedOriginal;
 
-    if (!shouldAttemptEncode && file.size <= maxBytes) {
+    if (!shouldAttemptEncode && workingFile.size <= maxBytes) {
       return {
-        file,
-        contentType: mime as AllowedAttachmentMimeType,
-        fileName: file.name,
-        size: file.size,
-        compressed: false,
+        file: workingFile,
+        contentType: workingMime as AllowedAttachmentMimeType,
+        fileName: workingFile.name,
+        size: workingFile.size,
+        compressed: wasHeicConverted,
         originalSize: file.size,
         width: scaled.width,
         height: scaled.height,
@@ -274,7 +312,7 @@ export async function compressAttachmentFile(
     }
 
     const outputMime: 'image/jpeg' | 'image/webp' =
-      mime === 'image/webp' ? 'image/webp' : 'image/jpeg';
+      workingMime === 'image/webp' ? 'image/webp' : 'image/jpeg';
     const compressedBlob = await encodeFn(
       decoded,
       scaled.width,
@@ -283,19 +321,19 @@ export async function compressAttachmentFile(
       quality,
     );
 
-    const useOriginal =
+    const useWorkingFile =
       !scaled.resized &&
       isAllowlistedOriginal &&
-      compressedBlob.size >= file.size &&
-      file.size <= maxBytes;
+      compressedBlob.size >= workingFile.size &&
+      workingFile.size <= maxBytes;
 
-    if (useOriginal) {
+    if (useWorkingFile) {
       return {
-        file,
-        contentType: mime as AllowedAttachmentMimeType,
-        fileName: file.name,
-        size: file.size,
-        compressed: false,
+        file: workingFile,
+        contentType: workingMime as AllowedAttachmentMimeType,
+        fileName: workingFile.name,
+        size: workingFile.size,
+        compressed: wasHeicConverted,
         originalSize: file.size,
         width: scaled.width,
         height: scaled.height,
@@ -309,7 +347,8 @@ export async function compressAttachmentFile(
     }
 
     const ext = outputMime === 'image/webp' ? 'webp' : 'jpg';
-    const nextFileName = outputMime === mime ? file.name : replaceExtension(file.name, ext);
+    const nextFileName =
+      outputMime === workingMime ? workingFile.name : replaceExtension(workingFile.name, ext);
     const compressedFile = new File([compressedBlob], nextFileName, {
       type: outputMime,
       lastModified: file.lastModified,

@@ -494,6 +494,18 @@ export function formatActivitySummary(
       };
     }
 
+    case 'card.attachment_renamed': {
+      const fromName = getStringField(diff.attachment?.from, 'fileName');
+      const toName = getStringField(diff.attachment?.to, 'fileName');
+      return {
+        headline:
+          fromName && toName
+            ? `renamed attachment "${fromName}" to "${toName}"`
+            : 'renamed an attachment',
+        details: [],
+      };
+    }
+
     case 'card.attachment_deleted': {
       const fileName = getStringField(diff.attachment?.from, 'fileName');
       return {

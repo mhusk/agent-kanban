@@ -534,6 +534,23 @@ export async function fetchAttachmentDownloadUrl(
   };
 }
 
+export async function renameCardAttachment(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  attachmentId: string,
+  fileName: string,
+): Promise<Attachment> {
+  const data = await apiRequest<{ attachment: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    {
+      method: 'PATCH',
+      body: { fileName },
+      getAccessToken,
+    },
+  );
+  return AttachmentSchema.parse(data.attachment);
+}
+
 export async function deleteCardAttachment(
   getAccessToken: AccessTokenProvider,
   cardId: string,

@@ -7,6 +7,7 @@
     "@agent-kanban/shared": "workspace:*",
     "@tanstack/react-query": "^5.108.3",
     "@workos-inc/authkit-react": "^0.16.3",
+    "heic-to": "^1.6.7",
     "lucide-react": "^1.80.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

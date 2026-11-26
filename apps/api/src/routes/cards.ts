@@ -6,6 +6,7 @@ import {
   deleteCardAttachmentHandler,
   getAttachmentDownloadUrlHandler,
   listCardAttachmentsHandler,
+  renameCardAttachmentHandler,
   resolveEmulatorApiBaseUrl,
 } from '../handlers/attachments.js';
 import {
@@ -545,6 +546,28 @@ export function createCardsRouter(configOverride?: AppConfig): Router {
               ...(configOverride ? { config: configOverride } : {}),
               emulatorBaseUrl: resolveEmulatorApiBaseUrl(req),
             },
+          );
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.patch(
+    '/cards/:id/attachments/:attachmentId',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await renameCardAttachmentHandler(
+            auth,
+            req.params.id,
+            req.params.attachmentId,
+            req.body,
+            configOverride ? { config: configOverride } : undefined,
           );
           res.status(200).json(result);
         } catch (error) {
