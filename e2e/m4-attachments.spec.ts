@@ -153,6 +153,19 @@ test.describe('M4.2 PWA Attachments: Photo compression, PDF upload & gallery', (
     await lightbox.getByRole('button', { name: 'Close preview' }).click();
     await expect(lightbox).toBeHidden();
 
+    // 3b2. Open in-browser PDF preview inside the modal and close it
+    await regionAfterReload.getByRole('button', { name: 'Preview warranty.pdf' }).click();
+    const pdfDialog = page.getByRole('dialog', { name: 'warranty.pdf' });
+    await expect(pdfDialog).toBeVisible();
+    const pdfFrame = pdfDialog.locator('iframe[title="warranty.pdf"]');
+    await expect(pdfFrame).toBeVisible();
+    const pdfSrc = await pdfFrame.getAttribute('src');
+    expect(pdfSrc).toBeTruthy();
+    const pdfResponse = await request.get(pdfSrc!);
+    expect(pdfResponse.status()).toBe(200);
+    await pdfDialog.getByRole('button', { name: 'Close preview' }).click();
+    await expect(pdfDialog).toBeHidden();
+
     // 3c. Rename PNG attachment and confirm persistence across reload
     await regionAfterReload.getByRole('button', { name: 'Rename heater-label.png' }).click();
     await regionAfterReload.getByLabel('Attachment name').fill('boiler-label.png');

@@ -90,6 +90,16 @@ function InlineRenameForm({
 function LightboxBody({ target }: { target: PreviewTarget }) {
   const [previewFailed, setPreviewFailed] = useState(false);
 
+  if (target.attachment.contentType === 'application/pdf') {
+    return (
+      <iframe
+        src={target.downloadUrl}
+        title={target.attachment.fileName}
+        className="h-[75dvh] w-full rounded-lg bg-white"
+      />
+    );
+  }
+
   if (previewFailed) {
     return (
       <div className="flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center text-slate-600">
@@ -122,7 +132,7 @@ function LightboxBody({ target }: { target: PreviewTarget }) {
   );
 }
 
-function ImageLightboxModal({
+function AttachmentPreviewModal({
   target,
   onClose,
 }: {
@@ -131,6 +141,7 @@ function ImageLightboxModal({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const isPdf = target?.attachment.contentType === 'application/pdf';
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -188,7 +199,10 @@ function ImageLightboxModal({
       {...({ closedby: 'any' } as Record<string, string>)}
       aria-labelledby={titleId}
       onClose={onClose}
-      className="m-auto w-[min(94vw,48rem)] rounded-2xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl"
+      className={[
+        'm-auto rounded-2xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl',
+        isPdf ? 'w-[min(95vw,56rem)]' : 'w-[min(94vw,48rem)]',
+      ].join(' ')}
     >
       {target ? (
         <div className="flex flex-col">
@@ -221,7 +235,12 @@ function ImageLightboxModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-center bg-slate-950/95 p-3 sm:p-4">
+          <div
+            className={[
+              'flex items-center justify-center',
+              isPdf ? 'bg-slate-100 p-2 sm:p-3' : 'bg-slate-950/95 p-3 sm:p-4',
+            ].join(' ')}
+          >
             <LightboxBody key={target.attachment.id} target={target} />
           </div>
         </div>
@@ -339,6 +358,7 @@ function AttachmentImageTile({
 function AttachmentPdfRow({
   cardId,
   attachment,
+  onPreview,
   onRename,
   onDelete,
   renaming,
@@ -346,6 +366,7 @@ function AttachmentPdfRow({
 }: {
   cardId: string;
   attachment: Attachment;
+  onPreview: (attachment: Attachment, downloadUrl: string) => void;
   onRename: (attachmentId: string, fileName: string) => Promise<void>;
   onDelete: (id: string) => void;
   renaming: boolean;
@@ -355,7 +376,7 @@ function AttachmentPdfRow({
   const [opening, setOpening] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
 
-  const handleOpen = async () => {
+  const handlePreview = async () => {
     setOpening(true);
     try {
       const { downloadUrl } = await fetchAttachmentDownloadUrl(
@@ -363,7 +384,7 @@ function AttachmentPdfRow({
         cardId,
         attachment.id,
       );
-      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+      onPreview(attachment, downloadUrl);
     } finally {
       setOpening(false);
     }
@@ -390,13 +411,14 @@ function AttachmentPdfRow({
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             <button
               type="button"
+              aria-label={`Preview ${attachment.fileName}`}
               disabled={opening}
               onClick={() => {
-                void handleOpen();
+                void handlePreview();
               }}
               className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-sky-700 hover:bg-slate-100 disabled:opacity-60"
             >
-              {opening ? 'Opening…' : 'Open PDF'}
+              {opening ? 'Loading…' : 'Preview PDF'}
             </button>
             <button
               type="button"
@@ -626,6 +648,7 @@ export function AttachmentSection({ cardId }: { cardId: string }) {
               attachment={att}
               renaming={renameMutation.isPending}
               deleting={deleteMutation.isPending}
+              onPreview={(attachment, downloadUrl) => setPreviewTarget({ attachment, downloadUrl })}
               onRename={handleRename}
               onDelete={(id) => deleteMutation.mutate(id)}
             />
@@ -633,7 +656,7 @@ export function AttachmentSection({ cardId }: { cardId: string }) {
         </ul>
       ) : null}
 
-      <ImageLightboxModal target={activePreview} onClose={() => setPreviewTarget(null)} />
+      <AttachmentPreviewModal target={activePreview} onClose={() => setPreviewTarget(null)} />
     </section>
   );
 }
