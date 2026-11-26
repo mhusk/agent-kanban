@@ -825,7 +825,7 @@ pnpm ci:verify
 **Functional Walkthrough Areas:**
 1. - [x] **Auth, Session & Access Control:** WorkOS sign-in/sign-out, reload/session persistence, unallowlisted email `403` screen, private vs shared card visibility isolation.
 2. - [x] **Navigation, Mobile Layout & PWA Shell:** Mobile responsiveness (zero horizontal overflow/clipping), bottom nav (`To-Do`, `Active`, `Done`, `Settings`), FAB placement, Home Screen install/icons, offline banner, loading/error states.
-3. - [ ] **Board Views, Search & Filters:** `To-Do` (Top 5 + collapsible rest, priority ordering, due badges), `Active` (`Doing` + `Blocked`), `Done` (completed + archived view), search bar, tag/assignee/visibility filters.
+3. - [x] **Board Views, Search & Filters:** `To-Do` (Top 5 + collapsible rest, priority ordering, due badges), `Active` (`Doing` + `Blocked`), `Done` (completed + archived view), search bar, tag/assignee/visibility filters.
 4. - [ ] **Quick-Add & Card Detail Core Editing:** Quick-Add modal defaults & sharing toggle, editing title/description/tags/assigned/aware/due/dueFirm/dueHasTime, status pills, optimistic updates, archive/unarchive, save feedback & error handling.
 5. - [ ] **Checklists, Links & Comments (`@mentions`):** Checklist create/rename/delete, item add/toggle/delete, link add/open/remove, comments with `@handle` mentions, Activity Log accuracy.
 6. - [ ] **Recurrence & Scheduled Jobs:** Cron and interval-after-completion rules, `Complete & Reset` (checklist reset + next due date in `HOUSEHOLD_TIMEZONE`), `scanDueCards` (`due_soon`/`overdue`) and `dailyMaintenance` behavior.
