@@ -823,7 +823,7 @@ pnpm ci:verify
 **Goal:** Systematically exercise every user-facing and agent-facing feature in the deployed app, capture real-world bugs and UX rough edges, and fix them with automated regression coverage before final v1 launch sign-off.
 
 **Functional Walkthrough Areas:**
-1. - [ ] **Auth, Session & Access Control:** WorkOS sign-in/sign-out, reload/session persistence, unallowlisted email `403` screen, private vs shared card visibility isolation.
+1. - [x] **Auth, Session & Access Control:** WorkOS sign-in/sign-out, reload/session persistence, unallowlisted email `403` screen, private vs shared card visibility isolation.
 2. - [ ] **Navigation, Mobile Layout & PWA Shell:** Mobile responsiveness (zero horizontal overflow/clipping), bottom nav (`To-Do`, `Active`, `Done`, `Settings`), FAB placement, Home Screen install/icons, offline banner, loading/error states.
 3. - [ ] **Board Views, Search & Filters:** `To-Do` (Top 5 + collapsible rest, priority ordering, due badges), `Active` (`Doing` + `Blocked`), `Done` (completed + archived view), search bar, tag/assignee/visibility filters.
 4. - [ ] **Quick-Add & Card Detail Core Editing:** Quick-Add modal defaults & sharing toggle, editing title/description/tags/assigned/aware/due/dueFirm/dueHasTime, status pills, optimistic updates, archive/unarchive, save feedback & error handling.
