@@ -27,6 +27,7 @@ export function DonePage({ user }: { user: User }) {
   } = useFilteredCards({
     statuses: DONE_STATUSES,
     archived: includeArchived ? 'all' : 'false',
+    includeAllArchivedStatuses: includeArchived,
     currentUserId: user.id,
     sort: 'updated',
   });

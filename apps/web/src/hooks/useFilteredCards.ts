@@ -9,6 +9,7 @@ export type PersonFilterValue = 'all' | 'me' | string;
 export interface UseFilteredCardsOptions {
   statuses: readonly CardStatus[];
   archived?: 'true' | 'false' | 'all';
+  includeAllArchivedStatuses?: boolean;
   currentUserId: string;
   sort?: 'priority' | 'updated';
 }
@@ -36,6 +37,7 @@ export interface UseFilteredCardsResult {
 export function useFilteredCards({
   statuses,
   archived = 'false',
+  includeAllArchivedStatuses = false,
   currentUserId,
   sort,
 }: UseFilteredCardsOptions): UseFilteredCardsResult {
@@ -68,11 +70,27 @@ export function useFilteredCards({
   });
 
   const cardsQuery = useQuery({
-    queryKey: ['cards', { status: statusKey, archived, sort, q: debouncedSearch }],
+    queryKey: [
+      'cards',
+      { status: statusKey, archived, includeAllArchivedStatuses, sort, q: debouncedSearch },
+    ],
     queryFn: async ({ signal }) => {
       if (debouncedSearch.length > 0) {
         const searched = await searchCards(getAccessToken, debouncedSearch, archived, signal);
-        return searched.filter((card) => statuses.includes(card.status));
+        return searched.filter(
+          (card) => statuses.includes(card.status) || (includeAllArchivedStatuses && card.archived),
+        );
+      }
+      if (includeAllArchivedStatuses) {
+        const fetched = await fetchCards(
+          getAccessToken,
+          {
+            archived,
+            ...(sort !== undefined ? { sort } : {}),
+          },
+          signal,
+        );
+        return fetched.filter((card) => statuses.includes(card.status) || card.archived);
       }
       return fetchCards(
         getAccessToken,

@@ -202,6 +202,25 @@ test.describe('M1.5 PWA Views, Top 5 To-Do, Active, Done, Search & Filters', () 
     if (!archiveRes.ok) {
       throw new Error(`Failed to archive card: HTTP ${archiveRes.status}`);
     }
+
+    const archivedTodoId = await createCardViaApi(alexToken, {
+      title: 'Archived Todo Card — Cancelled spring mulch order',
+      status: 'todo',
+      tags: ['home'],
+      assignedUserIds: ['user-alex'],
+      awareUserIds: ['user-sam'],
+    });
+    const archiveTodoRes = await fetch(`${BASE_URL}/api/cards/${archivedTodoId}/archive`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${alexToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ archived: true }),
+    });
+    if (!archiveTodoRes.ok) {
+      throw new Error(`Failed to archive todo card: HTTP ${archiveTodoRes.status}`);
+    }
   });
 
   test('renders Top 5 To-Do with Show 3 more, Active/Done views, filters, search, and zero mobile overflow', async ({
@@ -218,6 +237,9 @@ test.describe('M1.5 PWA Views, Top 5 To-Do, Active, Done, Search & Filters', () 
     await expect(page.getByText('Todo Priority 1 — Confirm HVAC inspection')).toBeVisible();
     await expect(page.getByText('Todo Priority 5 — Update emergency contact card')).toBeVisible();
     await expect(page.getByText('Todo Priority 6 — Order spare vacuum bags')).toHaveCount(0);
+    await expect(page.getByText('Archived Todo Card — Cancelled spring mulch order')).toHaveCount(
+      0,
+    );
     await expect(page.getByText('☑ 1/2')).toBeVisible();
     await expect(page.getByText('↻ Recurring')).toBeVisible();
 
@@ -274,9 +296,13 @@ test.describe('M1.5 PWA Views, Top 5 To-Do, Active, Done, Search & Filters', () 
     await expect(page.getByRole('heading', { level: 1, name: 'Done' })).toBeVisible();
     await expect(page.getByText('Done Card — Drop off charity donation box')).toBeVisible();
     await expect(page.getByText('Archived Done Card — Old winter salt bag')).toHaveCount(0);
+    await expect(page.getByText('Archived Todo Card — Cancelled spring mulch order')).toHaveCount(
+      0,
+    );
 
     await page.getByLabel('Include archived').check();
     await expect(page.getByText('Archived Done Card — Old winter salt bag')).toBeVisible();
+    await expect(page.getByText('Archived Todo Card — Cancelled spring mulch order')).toBeVisible();
     expect(await hasHorizontalOverflow(page)).toBe(false);
 
     // Settings tab: zero overflow
