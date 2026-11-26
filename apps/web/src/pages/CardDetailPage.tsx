@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Card, CardStatus, Recurrence, RecurrenceUnit, User } from '@agent-kanban/shared';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AttachmentSection } from '../components/AttachmentSection.js';
+import { MentionTextarea } from '../components/MentionTextarea.js';
 import { Select } from '../components/Select.js';
 import {
   addCardLink,
@@ -24,9 +25,23 @@ import {
   updateChecklistItem,
 } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
-import { formatActorLabel, getChecklistProgress } from '../lib/format.js';
+import { formatActivitySummary, formatActorLabel, getChecklistProgress } from '../lib/format.js';
 
 type RecurrenceKind = 'none' | 'cron' | 'interval_after_completion';
+
+function renderCommentText(text: string, knownHandles: ReadonlySet<string>) {
+  const parts = text.split(/(?<![A-Za-z0-9._%+@-])(@[A-Za-z0-9][A-Za-z0-9_-]*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('@') && knownHandles.has(part.slice(1).toLowerCase())) {
+      return (
+        <span key={index} className="font-medium text-sky-700">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
 
 function parseTagsInput(raw: string): string[] {
   const seen = new Set<string>();
@@ -115,6 +130,11 @@ export function CardDetailPage({ user }: { user: User }) {
   });
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
+  const mentionUsers = useMemo(() => (users.length > 0 ? users : [user]), [users, user]);
+  const knownHandles = useMemo(
+    () => new Set(mentionUsers.map((u) => u.handle.toLowerCase())),
+    [mentionUsers],
+  );
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
   const card = cardQuery.data;
 
@@ -1127,7 +1147,7 @@ export function CardDetailPage({ user }: { user: User }) {
                   <span className="text-slate-500">{formatDateTime(comment.createdAt)}</span>
                 </div>
                 <p className="mt-1 text-sm whitespace-pre-wrap wrap-break-word text-slate-800">
-                  {comment.text}
+                  {renderCommentText(comment.text, knownHandles)}
                 </p>
               </li>
             ))}
@@ -1146,13 +1166,13 @@ export function CardDetailPage({ user }: { user: User }) {
           }}
           className="space-y-2 pt-1"
         >
-          <textarea
-            aria-label="Add a comment"
+          <MentionTextarea
+            ariaLabel="Add a comment"
             rows={2}
             value={commentText}
-            onChange={(event) => setCommentText(event.target.value)}
-            placeholder={`Write a comment… use @handle to mention (signed in as @${user.handle})`}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            onChange={setCommentText}
+            users={mentionUsers}
+            placeholder={`Write a comment… type @ to mention (signed in as @${user.handle})`}
           />
           <div className="flex justify-end">
             <button
@@ -1174,23 +1194,34 @@ export function CardDetailPage({ user }: { user: User }) {
         {activity.length === 0 ? (
           <p className="mt-3 text-xs text-slate-500">No activity recorded yet.</p>
         ) : (
-          <ul className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+          <ul className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
             {activity.map((entry) => {
-              const diffKeys = Object.keys(entry.diff);
+              const summary = formatActivitySummary(entry, usersById);
               return (
                 <li key={entry.id} className="text-xs text-slate-700">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span>
                       <strong className="font-semibold text-slate-900">
                         {formatActorLabel(entry, usersById)}
                       </strong>{' '}
-                      · <code className="rounded bg-slate-100 px-1 py-0.5">{entry.action}</code>
+                      {summary.headline}{' '}
+                      <code className="rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-500">
+                        {entry.action}
+                      </code>
                     </span>
-                    <span className="text-slate-500">{formatDateTime(entry.createdAt)}</span>
+                    <span className="shrink-0 text-slate-500">
+                      {formatDateTime(entry.createdAt)}
+                    </span>
                   </div>
-                  {entry.note ? <p className="mt-0.5 text-slate-600">Note: {entry.note}</p> : null}
-                  {diffKeys.length > 0 ? (
-                    <p className="mt-0.5 text-slate-500">Changed: {diffKeys.join(', ')}</p>
+                  {summary.details.length > 0 ? (
+                    <ul className="mt-1 space-y-0.5 pl-3 text-slate-600">
+                      {summary.details.map((detail, idx) => (
+                        <li key={idx}>• {detail}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {entry.note ? (
+                    <p className="mt-0.5 pl-3 text-slate-600">Note: {entry.note}</p>
                   ) : null}
                 </li>
               );

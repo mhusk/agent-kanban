@@ -79,6 +79,10 @@ export async function listCardCommentsHandler(
   const snap = await cardRef.collection('comments').orderBy('createdAt', 'asc').get();
   const comments = snap.docs.map((doc) => parseStoredComment(doc.id, doc.data()));
 
+  if (cardSnap.data()?.commentCount !== comments.length) {
+    await cardRef.update({ commentCount: comments.length });
+  }
+
   return { comments };
 }
 
@@ -104,10 +108,19 @@ export async function createCardCommentHandler(
 
   return db.runTransaction(async (tx) => {
     const cardSnap = await tx.get(cardRef);
+    const rawCard = cardSnap.data() ?? {};
     const existing = assertCardVisible(
-      cardSnap.exists ? parseStoredCard(cardSnap.id, cardSnap.data() ?? {}) : null,
+      cardSnap.exists ? parseStoredCard(cardSnap.id, rawCard) : null,
       auth.ownerUserId,
     );
+
+    let nextCommentCount: number;
+    if (typeof rawCard.commentCount === 'number') {
+      nextCommentCount = rawCard.commentCount + 1;
+    } else {
+      const existingCommentsSnap = await tx.get(cardRef.collection('comments'));
+      nextCommentCount = existingCommentsSnap.size + 1;
+    }
 
     const nowIso = nextMonotonicIso(existing.lastTouchedAt, getNow());
     const comment = CommentSchema.parse({
@@ -124,6 +137,7 @@ export async function createCardCommentHandler(
 
     const updatedCard: Card = {
       ...existing,
+      commentCount: nextCommentCount,
       lastTouchedAt: nowIso,
     };
 
@@ -147,7 +161,7 @@ export async function createCardCommentHandler(
     });
 
     tx.set(cardRef.collection('comments').doc(comment.id), comment);
-    tx.update(cardRef, { lastTouchedAt: nowIso });
+    tx.update(cardRef, { lastTouchedAt: nowIso, commentCount: nextCommentCount });
     writeActivityInTransaction(tx, db, activity);
     writeEventInTransaction(tx, db, {
       type: 'card.commented',

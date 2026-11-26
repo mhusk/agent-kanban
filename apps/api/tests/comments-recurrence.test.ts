@@ -120,6 +120,7 @@ describe('Comments with @mentions & in-place recurring card resets (Emulator)', 
     });
     expect(sharedRes.status).toBe(201);
     const sharedCard = sharedRes.data.card;
+    expect(sharedCard.commentCount).toBe(0);
 
     const firstComment = await apiRequest<{ comment: Comment; card: Card }>(
       `/api/cards/${sharedCard.id}/comments`,
@@ -136,6 +137,7 @@ describe('Comments with @mentions & in-place recurring card resets (Emulator)', 
     expect(firstComment.data.comment.mentions).toEqual(['user-sam']);
     expect(firstComment.data.comment.actorType).toBe('human');
     expect(firstComment.data.comment.actorId).toBe('user-alex');
+    expect(firstComment.data.card.commentCount).toBe(1);
     expect(Date.parse(firstComment.data.card.lastTouchedAt)).toBeGreaterThan(
       Date.parse(sharedCard.lastTouchedAt),
     );
@@ -154,6 +156,13 @@ describe('Comments with @mentions & in-place recurring card resets (Emulator)', 
     );
     expect(secondComment.status).toBe(201);
     expect(secondComment.data.comment.mentions).toEqual(['user-alex', 'user-sam']);
+    expect(secondComment.data.card.commentCount).toBe(2);
+
+    const fetchedCardRes = await apiRequest<{ card: Card }>(`/api/cards/${sharedCard.id}`, {
+      token: alexToken,
+    });
+    expect(fetchedCardRes.status).toBe(200);
+    expect(fetchedCardRes.data.card.commentCount).toBe(2);
 
     const listComments = await apiRequest<{ comments: Comment[] }>(
       `/api/cards/${sharedCard.id}/comments`,

@@ -324,6 +324,7 @@ export async function createCardHandler(
         recurrence: input.recurrence,
         links,
         checklists,
+        commentCount: 0,
         archived: false,
         enteredStatusAt: nowIso,
         lastTouchedAt: nowIso,

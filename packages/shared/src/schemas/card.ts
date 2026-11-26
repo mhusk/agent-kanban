@@ -100,6 +100,7 @@ export const CardSchema = z.object({
   recurrence: RecurrenceSchema.nullable(),
   links: z.array(LinkAttachmentSchema).default([]),
   checklists: z.array(ChecklistSchema).default([]),
+  commentCount: z.number().int().min(0).default(0),
   archived: z.boolean().default(false),
   enteredStatusAt: IsoDateTimeSchema,
   lastTouchedAt: IsoDateTimeSchema,

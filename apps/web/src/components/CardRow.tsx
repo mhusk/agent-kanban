@@ -1,4 +1,5 @@
 import type { Card, User } from '@agent-kanban/shared';
+import { MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDueMeta, getChecklistProgress, getUserInitials } from '../lib/format.js';
 
@@ -78,6 +79,16 @@ export function CardRow({ card, usersById, showArchivedBadge = false }: CardRowP
                 className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700 tabular-nums"
               >
                 ☑ {checklistProgress.checked}/{checklistProgress.total}
+              </span>
+            ) : null}
+
+            {card.commentCount > 0 ? (
+              <span
+                aria-label={`${card.commentCount} ${card.commentCount === 1 ? 'comment' : 'comments'}`}
+                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700 tabular-nums"
+              >
+                <MessageSquare className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+                {card.commentCount}
               </span>
             ) : null}
 

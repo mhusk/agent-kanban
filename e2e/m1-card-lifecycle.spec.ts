@@ -109,10 +109,16 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await main.getByRole('button', { name: 'Add link' }).click();
     await expect(main.getByRole('link', { name: 'Trail map' })).toBeVisible();
 
-    // Post @mention comment
-    await main.getByLabel('Add a comment').fill('Hey @sam bring sunscreen');
+    // Post @mention comment using the @mention autocomplete picker
+    const commentBox = main.getByLabel('Add a comment');
+    await commentBox.fill('Hey @sa');
+    const mentionList = main.getByRole('listbox', { name: 'Mention a household member' });
+    await expect(mentionList).toBeVisible();
+    await mentionList.getByRole('option', { name: /Sam Rivera/i }).click();
+    await expect(commentBox).toHaveValue('Hey @sam ');
+    await commentBox.fill('Hey @sam bring sunscreen');
     await main.getByRole('button', { name: 'Post comment' }).click();
-    await expect(main.getByText('Hey @sam bring sunscreen')).toBeVisible();
+    await expect(main.getByText('Hey @sam bring sunscreen', { exact: true })).toBeVisible();
 
     // Change status to Doing
     await main.getByRole('button', { name: 'Doing' }).click();
@@ -128,7 +134,7 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     );
     await expect(main.getByRole('checkbox', { name: 'Pack water bottles' })).toBeChecked();
     await expect(main.getByRole('link', { name: 'Trail map' })).toBeVisible();
-    await expect(main.getByText('Hey @sam bring sunscreen')).toBeVisible();
+    await expect(main.getByText('Hey @sam bring sunscreen', { exact: true })).toBeVisible();
     await expect(main.getByRole('button', { name: 'Doing' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -156,10 +162,18 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await expect(main.getByRole('checkbox', { name: 'Pack water bottles' })).not.toBeChecked();
     await expect(main.getByLabel('Due date')).not.toHaveValue('');
     await expect(main.getByRole('link', { name: 'Trail map' })).toBeVisible();
-    await expect(main.getByText('Hey @sam bring sunscreen')).toBeVisible();
+    await expect(main.getByText('Hey @sam bring sunscreen', { exact: true })).toBeVisible();
 
     await main.getByText(/Activity Log \(/).click();
     await expect(main.locator('details')).toContainText('card.completed');
     await expect(main.locator('details')).toContainText('card.commented');
+    await expect(main.locator('details')).toContainText('changed status from To-Do to Doing');
+    await expect(main.locator('details')).toContainText('added link "Trail map"');
+
+    // Return to To-Do board and confirm comment count badge appears on the card row
+    await page.getByRole('link', { name: 'To-Do' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'To-Do' })).toBeVisible();
+    const hikeCard = page.getByRole('link', { name: /Plan weekend hike/i });
+    await expect(hikeCard.getByLabel('1 comment')).toBeVisible();
   });
 });
