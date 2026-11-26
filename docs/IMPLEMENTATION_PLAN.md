@@ -830,7 +830,7 @@ pnpm ci:verify
 5. - [x] **Checklists, Links & Comments (`@mentions`):** Checklist create/rename/delete, item add/toggle/delete, link add/open/remove, comments with `@handle` mentions, Activity Log accuracy.
 6. - [x] **Recurrence & Scheduled Jobs:** Cron and interval-after-completion rules, `Complete & Reset` (checklist reset + next due date in `HOUSEHOLD_TIMEZONE`), `scanDueCards` (`due_soon`/`overdue`) and `dailyMaintenance` behavior.
 7. - [x] **File Attachments (Photos & PDFs):** Photo capture/upload & client-side compression, PDF upload, 10 MB/MIME error handling, thumbnail grid, signed download URL viewing, deletion (Storage + Firestore), live GCS CORS.
-8. - [ ] **Settings, Household Roster & Agent Connections (API Keys):** Profile info, adding/viewing household members (admin vs member), creating copy-once API keys, reload hiding secret, rotating & revoking keys, `X-Agent-Name` attribution.
+8. - [x] **Settings, Household Roster & Agent Connections (API Keys):** Profile info, adding/viewing household members (admin vs member), creating copy-once API keys, reload hiding secret, rotating & revoking keys, `X-Agent-Name` attribution.
 9. - [ ] **Webhooks, Events & MCP Integration:** Settings webhook CRUD + Pause/Enable, live `onEventCreated` delivery (`Bearer`/`HMAC`), filters & visibility isolation, agent loop suppression (zero webhooks on agent writes), `GET /api/events` polling, `/mcp` client tools.
 
 **Bug-Fix Loop & Validation Gate:**
