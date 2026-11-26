@@ -102,6 +102,8 @@ jobs:
         env:
           VITE_AUTH_MODE: workos
           VITE_WORKOS_CLIENT_ID: ${{ secrets.VITE_WORKOS_CLIENT_ID }}
+          VITE_WORKOS_API_HOSTNAME: ${{ secrets.VITE_WORKOS_API_HOSTNAME }}
+          VITE_WORKOS_PERSIST_SESSION: ${{ vars.VITE_WORKOS_PERSIST_SESSION }}
         run: |
           pnpm --filter @agent-kanban/shared build
           pnpm --filter @agent-kanban/api build

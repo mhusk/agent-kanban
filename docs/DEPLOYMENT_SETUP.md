@@ -132,11 +132,16 @@ If you see `400 Bad Request` (`{"error":"invalid_grant","error_description":"Inv
 | `FIREBASE_PROJECT_ID` | Target Firebase/GCP project ID |
 | `FIREBASE_SERVICE_ACCOUNT` | Full JSON contents of the deploy service account key |
 | `VITE_WORKOS_CLIENT_ID` | `agent-kanban` WorkOS application Client ID (also passed as `WORKOS_CLIENT_ID` to the API) |
+| `VITE_WORKOS_API_HOSTNAME` *(optional, recommended)* | WorkOS custom auth domain (e.g., `auth.example.com`); first-party HttpOnly cookie so sign-in persists across reloads |
 | `WORKOS_JWKS_URL` | `https://api.workos.com/sso/jwks/<DEFAULT_APP_CLIENT_ID>` |
 | `WORKOS_ISSUER` | Exact JWT `iss` claim (`https://api.workos.com/user_management/<DEFAULT_APP_CLIENT_ID>`) |
 | `HOUSEHOLD_TIMEZONE` | Valid IANA timezone (e.g., `America/New_York`, `UTC`) |
 | `AUTO_ARCHIVE_DAYS` *(optional)* | Days before completed non-recurring cards auto-archive (defaults to `30`) |
 | `BACKUP_BUCKET` *(optional)* | GCS bucket URI (`gs://...`) for scheduled Firestore backups (used in M3.4) |
+
+**Session persistence (choose one, otherwise sign-in is lost on every reload in production):**
+- *Recommended:* custom WorkOS auth domain + `VITE_WORKOS_API_HOSTNAME` secret (needs a domain you own for both the app and `auth.` subdomain).
+- *Simpler:* set the GitHub Actions **repository variable** (Settings → Secrets and variables → Actions → Variables) `VITE_WORKOS_PERSIST_SESSION=localstorage`. The refresh token is stored in `localStorage`, readable by any XSS bug. Acceptable for a small private household deployment; the hostname option takes precedence if both are set.
 
 ---
 

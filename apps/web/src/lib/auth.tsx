@@ -62,6 +62,38 @@ function getConfiguredWorkOSClientId(): string | null {
   return raw;
 }
 
+/**
+ * Optional WorkOS custom auth domain (e.g. `auth.example.com`). When set, AuthKit
+ * uses a first-party HttpOnly session cookie so sessions survive page reloads in
+ * production without storing refresh tokens in localStorage.
+ */
+export function resolveWorkOSApiHostname(
+  raw: string | undefined = import.meta.env.VITE_WORKOS_API_HOSTNAME,
+): string | undefined {
+  const trimmed = raw
+    ?.trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '');
+  return trimmed ? trimmed : undefined;
+}
+
+/**
+ * Opt-in session persistence for deployments without a WorkOS custom auth domain.
+ * `VITE_WORKOS_PERSIST_SESSION=localstorage` stores the refresh token in localStorage
+ * (AuthKit `devMode`) so sessions survive reloads. It is readable by any XSS bug, so it
+ * is off by default; prefer `VITE_WORKOS_API_HOSTNAME` where a custom domain is available.
+ * Returns `undefined` to keep AuthKit's default (localStorage only on localhost).
+ */
+export function resolveWorkOSDevMode(
+  raw: string | undefined = import.meta.env.VITE_WORKOS_PERSIST_SESSION,
+  apiHostname: string | undefined = resolveWorkOSApiHostname(),
+): boolean | undefined {
+  if (apiHostname) {
+    return false;
+  }
+  return raw?.trim().toLowerCase() === 'localstorage' ? true : undefined;
+}
+
 export function resolveWebAuthMode(
   explicitRaw: string | undefined = import.meta.env.VITE_AUTH_MODE,
   workosClientId: string | null = getConfiguredWorkOSClientId(),
@@ -301,6 +333,8 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
     <AuthKitProvider
       clientId={clientId}
       redirectUri={redirectUri}
+      apiHostname={resolveWorkOSApiHostname()}
+      devMode={resolveWorkOSDevMode()}
       onRedirectCallback={() => {
         window.history.replaceState({}, document.title, '/');
       }}
