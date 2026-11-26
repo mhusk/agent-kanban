@@ -103,6 +103,61 @@ describe('computeNextDueDate recurrence engine', () => {
     ).toBe('2026-03-31T17:00:00.000Z');
   });
 
+  it('advances strictly past a future currentDue when completed early (cron and interval)', () => {
+    const saturdayCron = {
+      type: 'cron' as const,
+      expression: '0 7 * * 6',
+      timezone: NY,
+    };
+
+    // Completed Thu Nov 26 while already due Sat Nov 28 07:00 EST -> advances to Sat Dec 5 07:00 EST (12:00Z)
+    expect(
+      computeNextDueDate(saturdayCron, '2026-11-26T17:00:00.000Z', '2026-11-28T12:00:00.000Z', NY, {
+        dueHasTime: true,
+      }),
+    ).toBe('2026-12-05T12:00:00.000Z');
+
+    // Date-only currentDue on Sat Nov 28 completed Thu Nov 26 -> also advances to Sat Dec 5
+    expect(
+      computeNextDueDate(saturdayCron, '2026-11-26T17:00:00.000Z', '2026-11-28T00:00:00.000Z', NY, {
+        dueHasTime: false,
+      }),
+    ).toBe('2026-12-05T12:00:00.000Z');
+
+    const weeklyInterval = {
+      type: 'interval_after_completion' as const,
+      every: 7,
+      unit: 'days' as const,
+      timezone: NY,
+    };
+
+    // Already due Dec 3 (completed Nov 26, +7d = Dec 3) -> advances +7d past currentDue to Dec 10
+    expect(
+      computeNextDueDate(
+        weeklyInterval,
+        '2026-11-26T17:00:00.000Z',
+        '2026-12-03T00:00:00.000Z',
+        NY,
+        {
+          dueHasTime: false,
+        },
+      ),
+    ).toBe('2026-12-10T00:00:00.000Z');
+
+    // Slightly early (due Nov 28, completed Nov 26, +7d = Dec 3 > Nov 28) -> uses Dec 3
+    expect(
+      computeNextDueDate(
+        weeklyInterval,
+        '2026-11-26T17:00:00.000Z',
+        '2026-11-28T00:00:00.000Z',
+        NY,
+        {
+          dueHasTime: false,
+        },
+      ),
+    ).toBe('2026-12-03T00:00:00.000Z');
+  });
+
   it('throws on invalid timezone or invalid cron expression', () => {
     expect(() =>
       computeNextDueDate(

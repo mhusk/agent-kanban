@@ -140,7 +140,11 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
       'true',
     );
 
-    // Configure recurrence and save
+    // Configure weekly recurrence first to confirm human-friendly weekday pills, then interval
+    await main.getByLabel('Recurrence').selectOption('weekly');
+    await expect(main.getByRole('group', { name: 'Repeat on weekdays' })).toBeVisible();
+    await main.getByRole('button', { name: 'Saturday' }).click();
+
     await main.getByLabel('Recurrence').selectOption('interval_after_completion');
     await main.getByLabel('Every').fill('7');
     await main.getByLabel('Unit').selectOption('days');
@@ -152,6 +156,15 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await expect(completeBtn).toBeVisible();
     await completeBtn.click();
     await expect(main.getByText('Completed and reset for the next occurrence.')).toBeVisible();
+    const firstResetDue = await main.getByLabel('Due date').inputValue();
+    expect(firstResetDue).not.toBe('');
+
+    // Completing again early must strictly advance the due date forward
+    await completeBtn.click();
+    await expect(main.getByText('Completed and reset for the next occurrence.')).toBeVisible();
+    await expect.poll(() => main.getByLabel('Due date').inputValue()).not.toBe(firstResetDue);
+    const secondResetDue = await main.getByLabel('Due date').inputValue();
+    expect(Date.parse(secondResetDue)).toBeGreaterThan(Date.parse(firstResetDue));
 
     // Reload and verify reset state + preserved comment/link + Activity Log
     await page.reload();
@@ -165,10 +178,11 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await expect(main.getByText('Hey @sam bring sunscreen', { exact: true })).toBeVisible();
 
     await main.getByText(/Activity Log \(/).click();
-    await expect(main.locator('details')).toContainText('card.completed');
-    await expect(main.locator('details')).toContainText('card.commented');
-    await expect(main.locator('details')).toContainText('changed status from To-Do to Doing');
-    await expect(main.locator('details')).toContainText('added link "Trail map"');
+    const activityLog = main.locator('details').filter({ hasText: 'Activity Log' });
+    await expect(activityLog).toContainText('card.completed');
+    await expect(activityLog).toContainText('card.commented');
+    await expect(activityLog).toContainText('changed status from To-Do to Doing');
+    await expect(activityLog).toContainText('added link "Trail map"');
 
     // Return to To-Do board and confirm comment count badge appears on the card row
     await page.getByRole('link', { name: 'To-Do' }).click();

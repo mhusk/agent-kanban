@@ -42,13 +42,26 @@ export function computeNextDueDate(
       throw new Error(`Invalid 5-field cron expression: ${recurrence.expression}`);
     }
 
+    let anchor = completedInTz;
+    if (currentDue !== null) {
+      let dueInZone: DateTime;
+      if (options?.dueHasTime === false && currentDue.endsWith('T00:00:00.000Z')) {
+        dueInZone = DateTime.fromISO(`${currentDue.slice(0, 10)}T23:59:59.999`, { zone: tz });
+      } else {
+        dueInZone = DateTime.fromISO(currentDue, { zone: tz });
+      }
+      if (dueInZone.isValid && dueInZone.toMillis() > anchor.toMillis()) {
+        anchor = dueInZone;
+      }
+    }
+
     const expr = CronExpressionParser.parse(recurrence.expression, {
-      currentDate: completedInTz.toJSDate(),
+      currentDate: anchor.toJSDate(),
       tz,
     });
 
     let nextDate = expr.next().toDate();
-    while (nextDate.getTime() <= completedInTz.toMillis()) {
+    while (nextDate.getTime() <= anchor.toMillis()) {
       nextDate = expr.next().toDate();
     }
 
@@ -77,6 +90,9 @@ export function computeNextDueDate(
         second: currentDueInTz.second,
         millisecond: currentDueInTz.millisecond,
       });
+      if (target.toMillis() <= currentDueInTz.toMillis()) {
+        target = currentDueInTz.plus({ [recurrence.unit]: recurrence.every });
+      }
     }
 
     const iso = target.toUTC().toISO();
@@ -86,7 +102,24 @@ export function computeNextDueDate(
     return iso;
   }
 
-  const dateOnlyIso = DateTime.utc(shifted.year, shifted.month, shifted.day, 0, 0, 0, 0).toISO();
+  let targetDate: DateTime = DateTime.utc(shifted.year, shifted.month, shifted.day, 0, 0, 0, 0);
+  if (currentDue !== null) {
+    let dueDateUtc: DateTime;
+    if (currentDue.endsWith('T00:00:00.000Z')) {
+      const [y, m, d] = currentDue.slice(0, 10).split('-').map(Number);
+      dueDateUtc = DateTime.utc(y!, m!, d!, 0, 0, 0, 0);
+    } else {
+      const currentDueInTz = DateTime.fromISO(currentDue, { zone: tz });
+      dueDateUtc = currentDueInTz.isValid
+        ? DateTime.utc(currentDueInTz.year, currentDueInTz.month, currentDueInTz.day, 0, 0, 0, 0)
+        : DateTime.invalid('invalid currentDue');
+    }
+    if (dueDateUtc.isValid && targetDate.toMillis() <= dueDateUtc.toMillis()) {
+      targetDate = dueDateUtc.plus({ [recurrence.unit]: recurrence.every });
+    }
+  }
+
+  const dateOnlyIso = targetDate.toISO();
   if (!dateOnlyIso) {
     throw new Error('Failed to format date-only next due date as ISO string');
   }

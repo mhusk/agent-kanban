@@ -1,4 +1,5 @@
 import type { Activity, Card, Recurrence, User } from '@agent-kanban/shared';
+import { describeRecurrence } from './recurrenceUi.js';
 
 export interface DueMeta {
   label: string;
@@ -211,10 +212,19 @@ function formatRecurrenceValue(value: unknown): string {
     return String(value);
   }
   if (rec.type === 'cron' && typeof rec.expression === 'string') {
-    return `Cron (${rec.expression})`;
+    return describeRecurrence({
+      type: 'cron',
+      expression: rec.expression,
+      ...(typeof rec.timezone === 'string' ? { timezone: rec.timezone } : {}),
+    });
   }
   if (rec.type === 'interval_after_completion' && typeof rec.every === 'number' && rec.unit) {
-    return `Every ${rec.every} ${rec.unit}`;
+    return describeRecurrence({
+      type: 'interval_after_completion',
+      every: rec.every,
+      unit: rec.unit,
+      ...(typeof rec.timezone === 'string' ? { timezone: rec.timezone } : {}),
+    });
   }
   return 'Custom';
 }

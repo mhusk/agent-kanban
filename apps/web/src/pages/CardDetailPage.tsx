@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Card, CardStatus, Recurrence, RecurrenceUnit, User } from '@agent-kanban/shared';
+import type { Card, CardStatus, RecurrenceUnit, User } from '@agent-kanban/shared';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AttachmentSection } from '../components/AttachmentSection.js';
 import { MentionTextarea } from '../components/MentionTextarea.js';
@@ -26,8 +26,16 @@ import {
 } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
 import { formatActivitySummary, formatActorLabel, getChecklistProgress } from '../lib/format.js';
-
-type RecurrenceKind = 'none' | 'cron' | 'interval_after_completion';
+import {
+  WEEKDAY_OPTIONS,
+  createDefaultRecurrenceFormState,
+  describeRecurrence,
+  formStateToRecurrence,
+  recurrenceToFormState,
+  recurrencesEqual,
+  type RecurrenceFormState,
+  type RecurrenceMode,
+} from '../lib/recurrenceUi.js';
 
 function renderCommentText(text: string, knownHandles: ReadonlySet<string>) {
   const parts = text.split(/(?<![A-Za-z0-9._%+@-])(@[A-Za-z0-9][A-Za-z0-9_-]*)/g);
@@ -147,11 +155,9 @@ export function CardDetailPage({ user }: { user: User }) {
   const [dueInput, setDueInput] = useState('');
   const [dueFirm, setDueFirm] = useState(false);
   const [dueHasTime, setDueHasTime] = useState(false);
-  const [recurrenceKind, setRecurrenceKind] = useState<RecurrenceKind>('none');
-  const [cronExpression, setCronExpression] = useState('0 7 * * 6');
-  const [intervalEvery, setIntervalEvery] = useState(7);
-  const [intervalUnit, setIntervalUnit] = useState<RecurrenceUnit>('days');
-  const [recurrenceTimezone, setRecurrenceTimezone] = useState('');
+  const [recurrenceForm, setRecurrenceForm] = useState<RecurrenceFormState>(() =>
+    createDefaultRecurrenceFormState(new Date().getDay()),
+  );
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -175,19 +181,7 @@ export function CardDetailPage({ user }: { user: User }) {
     setDueHasTime(card.dueHasTime);
     setDueFirm(card.dueFirm);
     setDueInput(toDueInputValue(card.due, card.dueHasTime));
-    if (card.recurrence === null) {
-      setRecurrenceKind('none');
-      setRecurrenceTimezone('');
-    } else if (card.recurrence.type === 'cron') {
-      setRecurrenceKind('cron');
-      setCronExpression(card.recurrence.expression);
-      setRecurrenceTimezone(card.recurrence.timezone ?? '');
-    } else {
-      setRecurrenceKind('interval_after_completion');
-      setIntervalEvery(card.recurrence.every);
-      setIntervalUnit(card.recurrence.unit);
-      setRecurrenceTimezone(card.recurrence.timezone ?? '');
-    }
+    setRecurrenceForm(recurrenceToFormState(card.recurrence, new Date().getDay()));
   }, [card]);
 
   const invalidateCardData = async () => {
@@ -246,6 +240,7 @@ export function CardDetailPage({ user }: { user: User }) {
         ifUpdatedAt: card?.updatedAt,
       }),
     onSuccess: async (result) => {
+      queryClient.setQueryData(['card', cardId], result.card);
       setActionError(null);
       setEditMessage(
         result.recurringReset
@@ -280,23 +275,7 @@ export function CardDetailPage({ user }: { user: User }) {
       }
 
       const due = fromDueInputValue(dueInput, dueHasTime);
-      let recurrence: Recurrence | null = null;
-      const tz = recurrenceTimezone.trim();
-
-      if (recurrenceKind === 'cron') {
-        recurrence = {
-          type: 'cron',
-          expression: cronExpression.trim(),
-          ...(tz.length > 0 ? { timezone: tz } : {}),
-        };
-      } else if (recurrenceKind === 'interval_after_completion') {
-        recurrence = {
-          type: 'interval_after_completion',
-          every: Math.max(1, Math.floor(Number(intervalEvery) || 1)),
-          unit: intervalUnit,
-          ...(tz.length > 0 ? { timezone: tz } : {}),
-        };
-      }
+      const recurrence = formStateToRecurrence(recurrenceForm);
 
       return updateCard(getAccessToken, card.id, {
         title: trimmedTitle,
@@ -787,54 +766,157 @@ export function CardDetailPage({ user }: { user: User }) {
           </div>
         </div>
 
-        <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <label htmlFor="detail-recurrence" className="block text-xs font-semibold text-slate-700">
-            Recurrence
-          </label>
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label
+              htmlFor="detail-recurrence"
+              className="block text-xs font-semibold text-slate-700"
+            >
+              Repeat schedule
+            </label>
+            {recurrenceForm.mode !== 'none' ? (
+              <span className="text-xs font-medium text-sky-800">
+                {describeRecurrence(formStateToRecurrence(recurrenceForm))}
+              </span>
+            ) : null}
+          </div>
+
           <Select
             id="detail-recurrence"
-            value={recurrenceKind}
-            onChange={(event) => setRecurrenceKind(event.target.value as RecurrenceKind)}
+            aria-label="Recurrence"
+            value={recurrenceForm.mode}
+            onChange={(event) => {
+              const nextMode = event.target.value as RecurrenceMode;
+              setRecurrenceForm((prev) => ({ ...prev, mode: nextMode }));
+            }}
             wrapperClassName="w-full"
           >
-            <option value="none">None</option>
-            <option value="cron">Weekly / Cron</option>
-            <option value="interval_after_completion">Every N days/weeks/months after done</option>
+            <option value="none">Does not repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Every week</option>
+            <option value="monthly">Every month</option>
+            <option value="interval_after_completion">
+              After completion (every N days/weeks/months)
+            </option>
+            <option value="cron">Custom schedule (advanced)</option>
           </Select>
 
-          {recurrenceKind === 'cron' ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {recurrenceForm.mode === 'daily' ? (
+            <div className="max-w-44">
+              <label htmlFor="detail-recurrence-time" className="block text-xs text-slate-600">
+                At time
+              </label>
+              <input
+                id="detail-recurrence-time"
+                type="time"
+                value={recurrenceForm.time}
+                onChange={(event) =>
+                  setRecurrenceForm((prev) => ({ ...prev, time: event.target.value || '09:00' }))
+                }
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+              />
+            </div>
+          ) : null}
+
+          {recurrenceForm.mode === 'weekly' ? (
+            <div className="space-y-2.5">
               <div>
-                <label htmlFor="detail-cron-expr" className="block text-xs text-slate-600">
-                  5-field cron expression
-                </label>
-                <input
-                  id="detail-cron-expr"
-                  type="text"
-                  value={cronExpression}
-                  onChange={(event) => setCronExpression(event.target.value)}
-                  placeholder="0 7 * * 6"
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
-                />
+                <span className="block text-xs text-slate-600">Repeat on</span>
+                <div
+                  role="group"
+                  aria-label="Repeat on weekdays"
+                  className="mt-1.5 flex flex-wrap gap-1.5"
+                >
+                  {WEEKDAY_OPTIONS.map((day) => {
+                    const selected = recurrenceForm.weekdays.includes(day.value);
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={day.fullLabel}
+                        onClick={() => {
+                          setRecurrenceForm((prev) => {
+                            const exists = prev.weekdays.includes(day.value);
+                            if (exists && prev.weekdays.length === 1) {
+                              return prev;
+                            }
+                            const nextDays = exists
+                              ? prev.weekdays.filter((d) => d !== day.value)
+                              : [...prev.weekdays, day.value].sort((a, b) => a - b);
+                            return { ...prev, weekdays: nextDays };
+                          });
+                        }}
+                        className={[
+                          'min-h-10 min-w-11 rounded-xl px-2.5 text-xs font-semibold transition',
+                          selected
+                            ? 'bg-slate-900 text-white'
+                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
+                        ].join(' ')}
+                      >
+                        {day.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div>
-                <label htmlFor="detail-recurrence-tz" className="block text-xs text-slate-600">
-                  Timezone (optional IANA)
+              <div className="max-w-44">
+                <label htmlFor="detail-recurrence-time" className="block text-xs text-slate-600">
+                  At time
                 </label>
                 <input
-                  id="detail-recurrence-tz"
-                  type="text"
-                  value={recurrenceTimezone}
-                  onChange={(event) => setRecurrenceTimezone(event.target.value)}
-                  placeholder="UTC"
+                  id="detail-recurrence-time"
+                  type="time"
+                  value={recurrenceForm.time}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({ ...prev, time: event.target.value || '09:00' }))
+                  }
                   className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
                 />
               </div>
             </div>
           ) : null}
 
-          {recurrenceKind === 'interval_after_completion' ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {recurrenceForm.mode === 'monthly' ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="detail-recurrence-dom" className="block text-xs text-slate-600">
+                  Day of month (1–31)
+                </label>
+                <input
+                  id="detail-recurrence-dom"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={recurrenceForm.dayOfMonth}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({
+                      ...prev,
+                      dayOfMonth: Number(event.target.value) || 1,
+                    }))
+                  }
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="detail-recurrence-time" className="block text-xs text-slate-600">
+                  At time
+                </label>
+                <input
+                  id="detail-recurrence-time"
+                  type="time"
+                  value={recurrenceForm.time}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({ ...prev, time: event.target.value || '09:00' }))
+                  }
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {recurrenceForm.mode === 'interval_after_completion' ? (
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label htmlFor="detail-interval-every" className="block text-xs text-slate-600">
                   Every
@@ -844,8 +926,13 @@ export function CardDetailPage({ user }: { user: User }) {
                   type="number"
                   min={1}
                   max={3650}
-                  value={intervalEvery}
-                  onChange={(event) => setIntervalEvery(Number(event.target.value))}
+                  value={recurrenceForm.intervalEvery}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({
+                      ...prev,
+                      intervalEvery: Number(event.target.value),
+                    }))
+                  }
                   className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
                 />
               </div>
@@ -855,8 +942,13 @@ export function CardDetailPage({ user }: { user: User }) {
                 </label>
                 <Select
                   id="detail-interval-unit"
-                  value={intervalUnit}
-                  onChange={(event) => setIntervalUnit(event.target.value as RecurrenceUnit)}
+                  value={recurrenceForm.intervalUnit}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({
+                      ...prev,
+                      intervalUnit: event.target.value as RecurrenceUnit,
+                    }))
+                  }
                   wrapperClassName="mt-1 w-full"
                 >
                   <option value="days">days</option>
@@ -864,20 +956,55 @@ export function CardDetailPage({ user }: { user: User }) {
                   <option value="months">months</option>
                 </Select>
               </div>
-              <div className="col-span-2 sm:col-span-1">
-                <label htmlFor="detail-interval-tz" className="block text-xs text-slate-600">
-                  Timezone
+            </div>
+          ) : null}
+
+          {recurrenceForm.mode === 'cron' ? (
+            <div>
+              <label htmlFor="detail-cron-expr" className="block text-xs text-slate-600">
+                5-field cron expression
+              </label>
+              <input
+                id="detail-cron-expr"
+                type="text"
+                value={recurrenceForm.cronExpression}
+                onChange={(event) =>
+                  setRecurrenceForm((prev) => ({ ...prev, cronExpression: event.target.value }))
+                }
+                placeholder="0 9 * * 6"
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 font-mono text-sm"
+              />
+            </div>
+          ) : null}
+
+          {recurrenceForm.mode !== 'none' ? (
+            <details className="pt-1">
+              <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                Advanced: Timezone override (optional)
+              </summary>
+              <div className="mt-2">
+                <label htmlFor="detail-recurrence-tz" className="block text-xs text-slate-600">
+                  IANA timezone (leave blank for household default)
                 </label>
                 <input
-                  id="detail-interval-tz"
+                  id="detail-recurrence-tz"
                   type="text"
-                  value={recurrenceTimezone}
-                  onChange={(event) => setRecurrenceTimezone(event.target.value)}
-                  placeholder="UTC"
+                  value={recurrenceForm.timezone}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({ ...prev, timezone: event.target.value }))
+                  }
+                  placeholder="Uses household timezone"
                   className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
                 />
               </div>
-            </div>
+            </details>
+          ) : null}
+
+          {!recurrencesEqual(formStateToRecurrence(recurrenceForm), card.recurrence) ? (
+            <p className="text-xs font-medium text-amber-800">
+              Click Save changes below before using Complete &amp; Reset so your updated schedule
+              applies.
+            </p>
           ) : null}
         </div>
 

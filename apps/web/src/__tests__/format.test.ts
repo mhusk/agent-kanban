@@ -72,7 +72,7 @@ describe('formatActivitySummary', () => {
       'Assigned: Alex Rivera → Alex Rivera, Sam Rivera',
       'Shared with: None → Sam Rivera',
       'Due date: None → Dec 1, 2026',
-      'Recurrence: None → Every 7 days',
+      'Recurrence: None → Every 7 days after completion',
     ]);
   });
 
