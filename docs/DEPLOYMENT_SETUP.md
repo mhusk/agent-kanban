@@ -58,8 +58,11 @@ This guide captures the manual provisioning steps and real-world gotchas for dep
    cat > /tmp/cors.json <<'EOF'
    [
      {
-       "origin": ["https://<FIREBASE_PROJECT_ID>.web.app"],
-       "method": ["GET", "PUT", "HEAD"],
+       "origin": [
+         "https://<FIREBASE_PROJECT_ID>.web.app",
+         "https://<FIREBASE_PROJECT_ID>.firebaseapp.com"
+       ],
+       "method": ["GET", "PUT", "HEAD", "OPTIONS"],
        "responseHeader": ["Content-Type"],
        "maxAgeSeconds": 3600
      }

@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ChangeEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Attachment } from '@agent-kanban/shared';
+import { FileImage } from 'lucide-react';
 import {
   confirmAttachmentUpload,
   deleteCardAttachment,
@@ -27,6 +28,7 @@ function AttachmentImageTile({
   deleting: boolean;
 }) {
   const { getAccessToken } = useAppAuth();
+  const [previewFailed, setPreviewFailed] = useState(false);
   const urlQuery = useQuery({
     queryKey: ['attachment-download-url', cardId, attachment.id],
     queryFn: ({ signal }) =>
@@ -46,13 +48,22 @@ function AttachmentImageTile({
           aria-label={`Open full image ${attachment.fileName}`}
           className="block aspect-square w-full overflow-hidden bg-slate-100"
         >
-          <img
-            src={downloadUrl}
-            alt={attachment.fileName}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
+          {previewFailed ? (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-slate-100 p-3 text-center text-slate-600">
+              <FileImage className="h-7 w-7 shrink-0 text-slate-400" aria-hidden="true" />
+              <span className="text-xs font-medium text-slate-700">Preview unavailable</span>
+              <span className="text-[11px] text-sky-700 underline">Open file</span>
+            </div>
+          ) : (
+            <img
+              src={downloadUrl}
+              alt={attachment.fileName}
+              loading="lazy"
+              decoding="async"
+              onError={() => setPreviewFailed(true)}
+              className="h-full w-full object-cover"
+            />
+          )}
         </a>
       ) : (
         <div className="flex aspect-square w-full items-center justify-center bg-slate-100 text-xs text-slate-500">
@@ -206,6 +217,10 @@ export function AttachmentSection({ cardId }: { cardId: string }) {
       setStatusMessage(null);
       if (isApiError(err)) {
         setErrorMessage(err.message);
+      } else if (err instanceof TypeError && /fetch/i.test(err.message)) {
+        setErrorMessage(
+          'Upload blocked by storage CORS or network error. Verify Cloud Storage bucket CORS configuration and your connection.',
+        );
       } else if (err instanceof Error) {
         setErrorMessage(err.message);
       } else {

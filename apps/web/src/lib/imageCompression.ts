@@ -163,7 +163,8 @@ async function defaultEncodeImage(
 }
 
 function resolveFileMime(file: File): string {
-  const mime = (file.type || '').trim().toLowerCase();
+  const rawMime = (file.type || '').trim().toLowerCase();
+  const mime = rawMime === 'image/heif' ? 'image/heic' : rawMime;
   if (mime) {
     return mime;
   }
@@ -180,7 +181,7 @@ function resolveFileMime(file: File): string {
   if (lowerName.endsWith('.webp')) {
     return 'image/webp';
   }
-  if (lowerName.endsWith('.heic')) {
+  if (lowerName.endsWith('.heic') || lowerName.endsWith('.heif')) {
     return 'image/heic';
   }
   return '';
@@ -228,7 +229,29 @@ export async function compressAttachmentFile(
 
   const decodeFn = deps.decodeImage ?? defaultDecodeImage;
   const encodeFn = deps.encodeImage ?? defaultEncodeImage;
-  const decoded = await decodeFn(file);
+  let decoded: DecodedImage;
+  try {
+    decoded = await decodeFn(file);
+  } catch {
+    if (ALLOWLISTED_MIME_SET.has(mime)) {
+      if (file.size <= maxBytes) {
+        return {
+          file,
+          contentType: mime as AllowedAttachmentMimeType,
+          fileName: file.name,
+          size: file.size,
+          compressed: false,
+          originalSize: file.size,
+        };
+      }
+      throw new Error(
+        `Your browser cannot compress "${file.name}" (${formatFileSize(file.size)}), which exceeds the 10 MB upload limit. Convert it to JPEG or upload from Safari/iOS.`,
+      );
+    }
+    throw new Error(
+      `Your browser cannot decode "${file.name}" (${mime}). Please convert it to JPEG, PNG, or WebP.`,
+    );
+  }
 
   try {
     const scaled = computeScaledDimensions(decoded.width, decoded.height, maxEdgePx);

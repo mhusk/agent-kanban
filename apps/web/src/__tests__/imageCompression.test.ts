@@ -95,4 +95,36 @@ describe('compressAttachmentFile', () => {
     const emptyFile = new File([], 'empty.png', { type: 'image/png' });
     await expect(compressAttachmentFile(emptyFile)).rejects.toThrow(/empty/i);
   });
+
+  it('falls back to original HEIC upload when browser cannot decode HEIC and enforces limits', async () => {
+    const heicFile = new File([new Uint8Array(256_000)], 'photo.heic', { type: 'image/heic' });
+    const heicResult = await compressAttachmentFile(heicFile, {
+      decodeImage: async () => {
+        throw new Error('The source image could not be decoded.');
+      },
+    });
+    expect(heicResult.compressed).toBe(false);
+    expect(heicResult.file).toBe(heicFile);
+    expect(heicResult.contentType).toBe('image/heic');
+
+    const hugeHeic = new File([new Uint8Array(MAX_ATTACHMENT_SIZE_BYTES + 1)], 'huge.heic', {
+      type: 'image/heic',
+    });
+    await expect(
+      compressAttachmentFile(hugeHeic, {
+        decodeImage: async () => {
+          throw new Error('The source image could not be decoded.');
+        },
+      }),
+    ).rejects.toThrow(/10 MB upload limit/);
+
+    const tiffFile = new File([new Uint8Array(1024)], 'scan.tiff', { type: 'image/tiff' });
+    await expect(
+      compressAttachmentFile(tiffFile, {
+        decodeImage: async () => {
+          throw new Error('Unsupported');
+        },
+      }),
+    ).rejects.toThrow(/convert it to JPEG, PNG, or WebP/i);
+  });
 });
