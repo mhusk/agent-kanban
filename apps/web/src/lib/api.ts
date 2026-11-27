@@ -154,6 +154,75 @@ export async function fetchHouseholdUsers(
   return UserSchema.array().parse(data.users);
 }
 
+export interface TagSummary {
+  tag: string;
+  openCount: number;
+  totalCount: number;
+  lastUsedAt: string;
+}
+
+export interface RenameTagResult {
+  fromTag: string;
+  toTag: string | null;
+  updatedCount: number;
+}
+
+function isTagSummary(value: unknown): value is TagSummary {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.tag === 'string' &&
+    typeof record.openCount === 'number' &&
+    Number.isFinite(record.openCount) &&
+    typeof record.totalCount === 'number' &&
+    Number.isFinite(record.totalCount) &&
+    typeof record.lastUsedAt === 'string'
+  );
+}
+
+export async function fetchTags(
+  getAccessToken: AccessTokenProvider,
+  signal?: AbortSignal,
+): Promise<TagSummary[]> {
+  const data = await apiRequest<{ tags?: unknown }>('/api/tags', {
+    getAccessToken,
+    signal,
+  });
+  if (!Array.isArray(data?.tags) || !data.tags.every(isTagSummary)) {
+    throw new ApiError(500, 'INVALID_TAGS_RESPONSE', 'Tag list response was not valid');
+  }
+  return data.tags;
+}
+
+export async function renameTag(
+  getAccessToken: AccessTokenProvider,
+  payload: { fromTag: string; toTag: string | null; note?: string },
+  idempotencyKey?: string,
+): Promise<RenameTagResult> {
+  const data = await apiRequest<Partial<RenameTagResult>>('/api/tags/rename', {
+    method: 'POST',
+    body: payload,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    getAccessToken,
+  });
+  const toTagValid = data?.toTag === null || typeof data?.toTag === 'string';
+  if (
+    typeof data?.fromTag !== 'string' ||
+    typeof data.updatedCount !== 'number' ||
+    !Number.isFinite(data.updatedCount) ||
+    !toTagValid
+  ) {
+    throw new ApiError(500, 'INVALID_RENAME_RESPONSE', 'Tag rename response was not valid');
+  }
+  return {
+    fromTag: data.fromTag,
+    toTag: data.toTag ?? null,
+    updatedCount: data.updatedCount,
+  };
+}
+
 export interface CardListFilters {
   status?: string;
   tag?: string;

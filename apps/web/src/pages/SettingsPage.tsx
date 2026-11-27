@@ -17,15 +17,26 @@ import {
   fetchAgentConnections,
   fetchHouseholdUsers,
   fetchSubscriptions,
+  fetchTags,
   isApiError,
+  renameTag,
   revokeAgentConnection,
   rotateAgentConnection,
   updateAgentConnection,
   updateSubscription,
 } from '../lib/api.js';
 import { Select } from '../components/Select.js';
+import { invalidateCardsAndTags } from '../hooks/useFilteredCards.js';
 import { useAppAuth } from '../lib/auth.js';
 import { formatActorLabel } from '../lib/format.js';
+import { TAGS_QUERY_KEY, canonicalTagName, describeTagRenameResult } from '../lib/tagPicker.js';
+
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `tag-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 const EMPTY_USERS_MAP = new Map<string, User>();
 
@@ -98,6 +109,11 @@ export function SettingsPage({ user }: { user: User }) {
     queryFn: ({ signal }) => fetchSubscriptions(getAccessToken, signal),
   });
 
+  const tagsQuery = useQuery({
+    queryKey: TAGS_QUERY_KEY,
+    queryFn: ({ signal }) => fetchTags(getAccessToken, signal),
+  });
+
   // Add household member form (admin only)
   const [memberName, setMemberName] = useState('');
   const [memberEmail, setMemberEmail] = useState('');
@@ -137,6 +153,12 @@ export function SettingsPage({ user }: { user: User }) {
   const [selectedEventTypes, setSelectedEventTypes] = useState<EventType[]>(['card.created']);
   const [webhookError, setWebhookError] = useState<string | null>(null);
   const [confirmDeleteSubId, setConfirmDeleteSubId] = useState<string | null>(null);
+  const [tagAction, setTagAction] = useState<
+    { mode: 'rename'; tag: string } | { mode: 'remove'; tag: string } | null
+  >(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [tagStatus, setTagStatus] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
 
   useEffect(() => {
     const dialog = revealDialogRef.current;
@@ -299,6 +321,53 @@ export function SettingsPage({ user }: { user: User }) {
     },
   });
 
+  const renameTagMutation = useMutation({
+    mutationFn: (payload: { fromTag: string; toTag: string | null; destinationExisted: boolean }) =>
+      renameTag(
+        getAccessToken,
+        { fromTag: payload.fromTag, toTag: payload.toTag },
+        newIdempotencyKey(),
+      ),
+    onSuccess: async (result, variables) => {
+      setTagError(null);
+      setTagStatus(describeTagRenameResult(result, variables.destinationExisted));
+      setTagAction(null);
+      setRenameDraft('');
+      await Promise.all([
+        invalidateCardsAndTags(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['card'] }),
+      ]);
+    },
+    onError: (err) => {
+      setTagStatus(null);
+      setTagError(isApiError(err) ? err.message : 'Unable to update that tag.');
+    },
+  });
+
+  const handleRenameTag = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (tagAction?.mode !== 'rename') {
+      return;
+    }
+    const next = canonicalTagName(renameDraft);
+    if (!next) {
+      setTagStatus(null);
+      setTagError('Enter a tag name up to 50 characters.');
+      return;
+    }
+    if (next === tagAction.tag) {
+      setTagStatus(null);
+      setTagError('Choose a different tag name.');
+      return;
+    }
+    setTagError(null);
+    renameTagMutation.mutate({
+      fromTag: tagAction.tag,
+      toTag: next,
+      destinationExisted: (tagsQuery.data ?? []).some((item) => item.tag === next),
+    });
+  };
+
   const handleAddMember = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMemberError(null);
@@ -362,6 +431,7 @@ export function SettingsPage({ user }: { user: User }) {
   const users = usersQuery.data ?? [];
   const connections = connectionsQuery.data ?? [];
   const subscriptions = subscriptionsQuery.data ?? [];
+  const householdTags = tagsQuery.data ?? [];
 
   return (
     <section className="space-y-5">
@@ -532,6 +602,172 @@ export function SettingsPage({ user }: { user: User }) {
             </div>
           </form>
         ) : null}
+      </section>
+
+      <section
+        aria-labelledby="tags-heading"
+        className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs"
+      >
+        <div>
+          <h2
+            id="tags-heading"
+            className="text-sm font-semibold tracking-wide text-slate-500 uppercase"
+          >
+            Tags
+          </h2>
+          <p className="mt-1 text-xs text-slate-600">
+            Rename, merge, or remove a tag on every card you can see.
+          </p>
+        </div>
+
+        {tagError ? (
+          <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-800">
+            {tagError}
+          </p>
+        ) : null}
+        {tagStatus ? (
+          <p
+            role="status"
+            className="rounded-xl bg-emerald-50 px-3 py-2 text-xs break-words text-emerald-900"
+          >
+            {tagStatus}
+          </p>
+        ) : null}
+
+        {tagsQuery.isPending ? (
+          <p className="text-xs text-slate-500">Loading tags…</p>
+        ) : tagsQuery.isError ? (
+          <p role="alert" className="text-xs text-rose-800">
+            Unable to load tags.
+          </p>
+        ) : householdTags.length === 0 ? (
+          <p className="text-xs text-slate-500">
+            No tags yet. Tags show up here after they are added to a card.
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {householdTags.map((summary) => {
+              const isRenaming = tagAction?.mode === 'rename' && tagAction.tag === summary.tag;
+              const isRemoving = tagAction?.mode === 'remove' && tagAction.tag === summary.tag;
+              return (
+                <li key={summary.tag} className="space-y-2 py-3">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium break-all text-slate-900">#{summary.tag}</p>
+                      <p className="text-xs text-slate-500 tabular-nums">
+                        {summary.openCount} open · {summary.totalCount} total
+                      </p>
+                    </div>
+                    {!isRenaming && !isRemoving ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTagAction({ mode: 'rename', tag: summary.tag });
+                            setRenameDraft('');
+                            setTagError(null);
+                          }}
+                          className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-100"
+                        >
+                          Rename / Merge
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTagAction({ mode: 'remove', tag: summary.tag });
+                            setTagError(null);
+                          }}
+                          className="min-h-10 rounded-lg border border-rose-200 bg-white px-3 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {isRenaming ? (
+                    <form onSubmit={handleRenameTag} className="space-y-2">
+                      <div>
+                        <label
+                          htmlFor="rename-tag-input"
+                          className="block text-xs font-medium text-slate-700"
+                        >
+                          New tag name
+                        </label>
+                        <input
+                          id="rename-tag-input"
+                          type="text"
+                          required
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          value={renameDraft}
+                          onChange={(event) => setRenameDraft(event.target.value)}
+                          placeholder="shopping"
+                          className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Renames #{summary.tag} on every visible card. If the new name already
+                        exists, those cards are merged into it.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="submit"
+                          disabled={renameTagMutation.isPending}
+                          className="min-h-10 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                          {renameTagMutation.isPending ? 'Saving…' : 'Confirm rename'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={renameTagMutation.isPending}
+                          onClick={() => setTagAction(null)}
+                          className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+
+                  {isRemoving ? (
+                    <div className="space-y-2">
+                      <p className="text-xs break-words text-slate-700">
+                        Remove #{summary.tag} from {summary.totalCount} visible{' '}
+                        {summary.totalCount === 1 ? 'card' : 'cards'}?
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={renameTagMutation.isPending}
+                          onClick={() =>
+                            renameTagMutation.mutate({
+                              fromTag: summary.tag,
+                              toTag: null,
+                              destinationExisted: false,
+                            })
+                          }
+                          className="min-h-10 rounded-lg bg-rose-700 px-3 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-60"
+                        >
+                          {renameTagMutation.isPending ? 'Removing…' : 'Confirm remove'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={renameTagMutation.isPending}
+                          onClick={() => setTagAction(null)}
+                          className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       {/* Agent Connections (API Keys) */}
