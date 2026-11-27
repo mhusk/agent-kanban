@@ -66,7 +66,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M4.3** — PWA installability, icons/manifest, offline banner, optimistic UX & accessibility polish
 - [x] **M4.4** — Public `README.md`, self-hosting guide, prod smoke script & full regression verification
 - [x] **M4.5 `[HUMAN]`** — Human-guided feature walkthrough & bug-fix pass
-- [ ] **M4.6 `[HUMAN]`** — Final production verification (household PWA install + Chief of Staff live test)
+- [x] **M4.6 `[HUMAN]`** — Final production verification (household PWA install + Chief of Staff live test)
 
 ---
 
@@ -839,7 +839,7 @@ pnpm ci:verify
 
 ---
 
-### - [ ] Step M4.6 `[HUMAN]`: Final production verification (household PWA install + Chief of Staff live test)
+### - [x] Step M4.6 `[HUMAN]`: Final production verification (household PWA install + Chief of Staff live test)
 
 > **AGENT STOP GATE:** Final human verification milestone for v1 launch.
 
