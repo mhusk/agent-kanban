@@ -65,7 +65,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M4.2** — PWA client-side image compression, photo/PDF upload & attachment gallery
 - [x] **M4.3** — PWA installability, icons/manifest, offline banner, optimistic UX & accessibility polish
 - [x] **M4.4** — Public `README.md`, self-hosting guide, prod smoke script & full regression verification
-- [ ] **M4.5 `[HUMAN]`** — Human-guided feature walkthrough & bug-fix pass
+- [x] **M4.5 `[HUMAN]`** — Human-guided feature walkthrough & bug-fix pass
 - [ ] **M4.6 `[HUMAN]`** — Final production verification (household PWA install + Chief of Staff live test)
 
 ---
@@ -816,7 +816,7 @@ pnpm ci:verify
 
 ---
 
-### - [ ] Step M4.5 `[HUMAN]`: Human-guided feature walkthrough & bug-fix pass
+### - [x] Step M4.5 `[HUMAN]`: Human-guided feature walkthrough & bug-fix pass
 
 > **AGENT STOP GATE:** Interactive QA pass led by the user. Work through one functional area at a time; fix reported bugs with regression tests, verify with `pnpm ci:verify`, and deploy/confirm each fix before checking off that area.
 
@@ -831,7 +831,7 @@ pnpm ci:verify
 6. - [x] **Recurrence & Scheduled Jobs:** Cron and interval-after-completion rules, `Complete & Reset` (checklist reset + next due date in `HOUSEHOLD_TIMEZONE`), `scanDueCards` (`due_soon`/`overdue`) and `dailyMaintenance` behavior.
 7. - [x] **File Attachments (Photos & PDFs):** Photo capture/upload & client-side compression, PDF upload, 10 MB/MIME error handling, thumbnail grid, signed download URL viewing, deletion (Storage + Firestore), live GCS CORS.
 8. - [x] **Settings, Household Roster & Agent Connections (API Keys):** Profile info, adding/viewing household members (admin vs member), creating copy-once API keys, reload hiding secret, rotating & revoking keys, `X-Agent-Name` attribution.
-9. - [ ] **Webhooks, Events & MCP Integration:** Settings webhook CRUD + Pause/Enable, live `onEventCreated` delivery (`Bearer`/`HMAC`), filters & visibility isolation, agent loop suppression (zero webhooks on agent writes), `GET /api/events` polling, `/mcp` client tools.
+9. - [x] **Webhooks, Events & MCP Integration:** Settings webhook CRUD + Pause/Enable, live `onEventCreated` delivery (`Bearer`/`HMAC`), filters & visibility isolation, agent loop suppression (zero webhooks on agent writes), `GET /api/events` polling, `/mcp` client tools.
 
 **Bug-Fix Loop & Validation Gate:**
 - For every batch of bugs fixed: add or update automated tests covering the root cause, run `pnpm ci:verify`, commit directly to `main`, push to deploy, and confirm live with the user before checking off that area (`- [x]`).
