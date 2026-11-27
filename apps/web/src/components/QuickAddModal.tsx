@@ -1,27 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { User } from '@agent-kanban/shared';
+import { invalidateCardsAndTags } from '../hooks/useFilteredCards.js';
 import { createCard, isApiError } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
+import { TagPicker } from './TagPicker.js';
 
 export interface QuickAddModalProps {
   open: boolean;
   onClose: () => void;
   currentUser: User;
   users: readonly User[];
-}
-
-function parseTagsInput(raw: string): string[] {
-  const seen = new Set<string>();
-  const tags: string[] = [];
-  for (const part of raw.split(',')) {
-    const trimmed = part.trim();
-    if (trimmed.length > 0 && !seen.has(trimmed)) {
-      seen.add(trimmed);
-      tags.push(trimmed);
-    }
-  }
-  return tags;
 }
 
 function toUtcIsoFromDueInput(rawValue: string, hasTime: boolean): string | null {
@@ -47,7 +36,7 @@ export function QuickAddModal({ open, onClose, currentUser, users }: QuickAddMod
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [tagsRaw, setTagsRaw] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [dueInput, setDueInput] = useState('');
   const [dueFirm, setDueFirm] = useState(false);
   const [dueHasTime, setDueHasTime] = useState(false);
@@ -57,7 +46,7 @@ export function QuickAddModal({ open, onClose, currentUser, users }: QuickAddMod
   const resetForm = () => {
     setTitle('');
     setDescription('');
-    setTagsRaw('');
+    setTags([]);
     setDueInput('');
     setDueFirm(false);
     setDueHasTime(false);
@@ -139,7 +128,7 @@ export function QuickAddModal({ open, onClose, currentUser, users }: QuickAddMod
         {
           title: trimmedTitle,
           description: description.trim(),
-          tags: parseTagsInput(tagsRaw),
+          tags,
           assignedUserIds: [currentUser.id],
           awareUserIds,
           due,
@@ -150,7 +139,7 @@ export function QuickAddModal({ open, onClose, currentUser, users }: QuickAddMod
       );
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['cards'] });
+      await invalidateCardsAndTags(queryClient);
       resetForm();
       onClose();
     },
@@ -255,19 +244,7 @@ export function QuickAddModal({ open, onClose, currentUser, users }: QuickAddMod
             />
           </div>
 
-          <div>
-            <label htmlFor="quick-add-tags" className="block text-xs font-semibold text-slate-700">
-              Tags (comma-separated)
-            </label>
-            <input
-              id="quick-add-tags"
-              type="text"
-              value={tagsRaw}
-              onChange={(event) => setTagsRaw(event.target.value)}
-              placeholder="home, groceries, errands"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"
-            />
-          </div>
+          <TagPicker id="quick-add-tags" value={tags} onChange={setTags} />
 
           <div className="space-y-2">
             <label htmlFor="quick-add-due" className="block text-xs font-semibold text-slate-700">

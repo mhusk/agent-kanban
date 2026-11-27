@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import type { Card, CardStatus, User } from '@agent-kanban/shared';
 import { fetchCards, fetchHouseholdUsers, searchCards } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
+import { TAGS_QUERY_KEY, cardMatchesSelectedTag, collectAvailableTags } from '../lib/tagPicker.js';
+
+export function invalidateCardsAndTags(queryClient: QueryClient): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['cards'] }),
+    queryClient.invalidateQueries({ queryKey: TAGS_QUERY_KEY }),
+  ]).then(() => undefined);
+}
 
 export type PersonFilterValue = 'all' | 'me' | string;
 
@@ -109,19 +117,11 @@ export function useFilteredCards({
 
   const allStatusCards = useMemo(() => cardsQuery.data ?? [], [cardsQuery.data]);
 
-  const availableTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    for (const card of allStatusCards) {
-      for (const tag of card.tags) {
-        tagSet.add(tag);
-      }
-    }
-    return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
-  }, [allStatusCards]);
+  const availableTags = useMemo(() => collectAvailableTags(allStatusCards), [allStatusCards]);
 
   const filteredCards = useMemo(() => {
     return allStatusCards.filter((card) => {
-      if (selectedTag !== null && !card.tags.includes(selectedTag)) {
+      if (!cardMatchesSelectedTag(card.tags, selectedTag)) {
         return false;
       }
       if (personFilter === 'me') {

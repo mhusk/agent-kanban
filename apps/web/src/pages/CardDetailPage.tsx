@@ -6,6 +6,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AttachmentSection } from '../components/AttachmentSection.js';
 import { MentionTextarea } from '../components/MentionTextarea.js';
 import { Select } from '../components/Select.js';
+import { TagPicker } from '../components/TagPicker.js';
+import { invalidateCardsAndTags } from '../hooks/useFilteredCards.js';
 import {
   addCardLink,
   addChecklistItem,
@@ -27,6 +29,7 @@ import {
 } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
 import { formatActivitySummary, formatActorLabel, getChecklistProgress } from '../lib/format.js';
+import { normalizeTagList } from '../lib/tagPicker.js';
 import {
   WEEKDAY_OPTIONS,
   createDefaultRecurrenceFormState,
@@ -50,19 +53,6 @@ function renderCommentText(text: string, knownHandles: ReadonlySet<string>) {
     }
     return part;
   });
-}
-
-function parseTagsInput(raw: string): string[] {
-  const seen = new Set<string>();
-  const tags: string[] = [];
-  for (const part of raw.split(',')) {
-    const trimmed = part.trim();
-    if (trimmed.length > 0 && !seen.has(trimmed)) {
-      seen.add(trimmed);
-      tags.push(trimmed);
-    }
-  }
-  return tags;
 }
 
 function toDueInputValue(due: string | null, dueHasTime: boolean): string {
@@ -150,7 +140,7 @@ export function CardDetailPage({ user }: { user: User }) {
   // Editable form state synced from loaded card
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [tagsRaw, setTagsRaw] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
   const [awareUserIds, setAwareUserIds] = useState<string[]>([]);
   const [dueInput, setDueInput] = useState('');
@@ -176,7 +166,7 @@ export function CardDetailPage({ user }: { user: User }) {
     }
     setTitle(card.title);
     setDescription(card.description);
-    setTagsRaw(card.tags.join(', '));
+    setTags(normalizeTagList(card.tags));
     setAssignedUserIds(card.assignedUserIds);
     setAwareUserIds(card.awareUserIds);
     setDueHasTime(card.dueHasTime);
@@ -190,7 +180,7 @@ export function CardDetailPage({ user }: { user: User }) {
       queryClient.invalidateQueries({ queryKey: ['card', cardId] }),
       queryClient.invalidateQueries({ queryKey: ['card-comments', cardId] }),
       queryClient.invalidateQueries({ queryKey: ['card-activity', cardId] }),
-      queryClient.invalidateQueries({ queryKey: ['cards'] }),
+      invalidateCardsAndTags(queryClient),
     ]);
   };
 
@@ -281,7 +271,7 @@ export function CardDetailPage({ user }: { user: User }) {
       return updateCard(getAccessToken, card.id, {
         title: trimmedTitle,
         description,
-        tags: parseTagsInput(tagsRaw),
+        tags,
         assignedUserIds,
         awareUserIds,
         due,
@@ -660,18 +650,7 @@ export function CardDetailPage({ user }: { user: User }) {
           />
         </div>
 
-        <div>
-          <label htmlFor="detail-tags" className="block text-xs font-semibold text-slate-700">
-            Tags (comma-separated)
-          </label>
-          <input
-            id="detail-tags"
-            type="text"
-            value={tagsRaw}
-            onChange={(event) => setTagsRaw(event.target.value)}
-            className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"
-          />
-        </div>
+        <TagPicker id="detail-tags" value={tags} onChange={setTags} />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <fieldset className="rounded-xl border border-slate-200 p-3">

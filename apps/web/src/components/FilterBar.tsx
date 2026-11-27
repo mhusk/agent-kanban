@@ -1,4 +1,4 @@
-import type { User } from '@agent-kanban/shared';
+import { normalizeTag, type User } from '@agent-kanban/shared';
 import type { PersonFilterValue } from '../hooks/useFilteredCards.js';
 import { Select } from './Select.js';
 
@@ -88,7 +88,7 @@ export function FilterBar({
             All
           </button>
           {availableTags.map((tag) => {
-            const active = selectedTag === tag;
+            const active = selectedTag !== null && normalizeTag(selectedTag) === normalizeTag(tag);
             return (
               <button
                 key={tag}

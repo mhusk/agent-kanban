@@ -56,7 +56,10 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await expect(shareCheckbox).toBeChecked();
 
     await page.getByLabel('Title').fill('Plan weekend hike');
-    await page.getByLabel('Tags (comma-separated)').fill('outdoors');
+    const tagInput = page.getByRole('combobox', { name: 'Tags' });
+    await tagInput.fill('outdoors');
+    await tagInput.press('Enter');
+    await expect(page.getByRole('button', { name: 'Remove tag outdoors' })).toBeVisible();
     await page.getByRole('button', { name: 'Create card' }).click();
 
     await expect(page.getByText('Plan weekend hike')).toBeVisible();
