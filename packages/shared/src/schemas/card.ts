@@ -58,10 +58,14 @@ export const CronExpressionSchema = z.string().trim().min(9).max(120).refine(isV
 export const RecurrenceUnitSchema = z.enum(['days', 'weeks', 'months']);
 export type RecurrenceUnit = z.infer<typeof RecurrenceUnitSchema>;
 
+const RecurrenceLeadDaysSchema = z.number().int().min(0).max(365).optional();
+
 export const CronRecurrenceSchema = z.object({
   type: z.literal('cron'),
   expression: CronExpressionSchema,
   timezone: IanaTimezoneSchema.optional(),
+  autoDefer: z.boolean().optional(),
+  leadDays: RecurrenceLeadDaysSchema,
 });
 export type CronRecurrence = z.infer<typeof CronRecurrenceSchema>;
 
@@ -70,6 +74,8 @@ export const IntervalRecurrenceSchema = z.object({
   every: z.number().int().min(1).max(3650),
   unit: RecurrenceUnitSchema,
   timezone: IanaTimezoneSchema.optional(),
+  autoDefer: z.boolean().optional(),
+  leadDays: RecurrenceLeadDaysSchema,
 });
 export type IntervalRecurrence = z.infer<typeof IntervalRecurrenceSchema>;
 
@@ -100,6 +106,9 @@ export const CardSchema = z.object({
   dueFirm: z.boolean().default(false),
   dueHasTime: z.boolean().default(false),
   recurrence: RecurrenceSchema.nullable(),
+  pinned: z.boolean().default(false),
+  deferUntil: IsoDateTimeSchema.nullable().default(null),
+  lastCompletedAt: IsoDateTimeSchema.nullable().default(null),
   links: z.array(LinkAttachmentSchema).default([]),
   checklists: z.array(ChecklistSchema).default([]),
   commentCount: z.number().int().min(0).default(0),
@@ -208,6 +217,8 @@ export const CreateCardInputSchema = z.object({
   dueFirm: z.boolean().optional().default(false),
   dueHasTime: z.boolean().optional().default(false),
   recurrence: RecurrenceSchema.nullable().optional().default(null),
+  pinned: z.boolean().optional().default(false),
+  deferUntil: IsoDateTimeSchema.nullable().optional().default(null),
   links: z.array(CreateLinkAttachmentInputSchema).optional().default([]),
   checklists: z.array(CreateChecklistInputSchema).optional().default([]),
   trelloUrl: HttpUrlSchema.nullable().optional().default(null),
@@ -229,6 +240,8 @@ export const UpdateCardInputSchema = z.object({
   dueFirm: z.boolean().optional(),
   dueHasTime: z.boolean().optional(),
   recurrence: RecurrenceSchema.nullable().optional(),
+  pinned: z.boolean().optional(),
+  deferUntil: IsoDateTimeSchema.nullable().optional(),
   archived: z.boolean().optional(),
   trelloUrl: HttpUrlSchema.nullable().optional(),
   trelloShortLink: z.string().trim().min(1).max(64).nullable().optional(),
@@ -256,6 +269,12 @@ export const CompleteCardInputSchema = z.object({
   note: NoteSchema.optional(),
 });
 export type CompleteCardInput = z.infer<typeof CompleteCardInputSchema>;
+
+export const RescoreCardInputSchema = z.object({
+  ifUpdatedAt: IsoDateTimeSchema.optional(),
+  note: NoteSchema.optional(),
+});
+export type RescoreCardInput = z.infer<typeof RescoreCardInputSchema>;
 
 export const BulkPriorityUpdateItemSchema = z.object({
   cardId: EntityIdSchema,

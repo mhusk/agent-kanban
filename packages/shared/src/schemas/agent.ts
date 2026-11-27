@@ -55,6 +55,9 @@ export const EventTypeSchema = z.enum([
   'card.completed',
   'card.due_soon',
   'card.overdue',
+  'card.unsnoozed',
+  'card.rescore_requested',
+  'cards.bulk_updated',
 ]);
 export type EventType = z.infer<typeof EventTypeSchema>;
 
@@ -138,7 +141,7 @@ export type EventActor = z.infer<typeof EventActorSchema>;
 export const EventSchema = z.object({
   id: EntityIdSchema,
   type: EventTypeSchema,
-  cardId: EntityIdSchema,
+  cardId: EntityIdSchema.nullable(),
   visibleToUserIds: z.array(EntityIdSchema).min(1),
   actor: EventActorSchema,
   note: NoteSchema.nullable().default(null),
