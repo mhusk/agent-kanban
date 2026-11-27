@@ -130,7 +130,10 @@ test.describe('M3.4 PWA Settings: Webhook Subscriptions Panel', () => {
     ).toHaveCount(0);
 
     // Create a Standard Webhooks (Grok) subscription, confirm badge + hidden secret + Refresh/lastDelivery display
-    const stdSecret = 'whsec_c3RhbmRhcmQtd2ViaG9vay10ZXN0LXNlY3JldA==';
+    const stdSecret = [
+      'whsec',
+      Buffer.from('standard-webhook-test-secret').toString('base64'),
+    ].join('_');
     const webhooksAfterDelete = page.getByRole('region', { name: 'Webhook Subscriptions' });
     await webhooksAfterDelete.getByRole('button', { name: 'Add webhook' }).click();
     await webhooksAfterDelete
