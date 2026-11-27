@@ -195,9 +195,25 @@ test.describe('M1.6 PWA Quick-Add (FAB + household sharing) & Card Detail Lifecy
     await refreshActivityBtn.click();
     await expect(activityLog).toContainText('card.completed');
 
-    // Return to To-Do board and confirm comment count badge appears on the card row
+    // A 7-day recurrence auto-defers after completion, so the card leaves the default To-Do list.
+    const cardId = new URL(page.url()).pathname.split('/').filter(Boolean).pop();
+    expect(cardId).toBeTruthy();
     await page.getByRole('link', { name: 'To-Do' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'To-Do' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Plan weekend hike/i })).toHaveCount(0);
+
+    // Waking the card returns it to To-Do with the comment count badge.
+    const tokenResponse = await page.request.post('/api/dev/token', {
+      data: { handle: 'alex' },
+    });
+    expect(tokenResponse.ok()).toBe(true);
+    const { token } = (await tokenResponse.json()) as { token: string };
+    const wakeResponse = await page.request.patch(`/api/cards/${cardId}`, {
+      headers: { authorization: `Bearer ${token}` },
+      data: { deferUntil: null },
+    });
+    expect(wakeResponse.ok()).toBe(true);
+    await page.reload();
     const hikeCard = page.getByRole('link', { name: /Plan weekend hike/i });
     await expect(hikeCard.getByLabel('1 comment')).toBeVisible();
   });
