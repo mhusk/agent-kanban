@@ -5,6 +5,7 @@ import {
   listAgentConnectionsHandler,
   revokeAgentConnectionHandler,
   rotateAgentConnectionHandler,
+  updateAgentConnectionHandler,
 } from '../handlers/agentConnections.js';
 import { AppError } from '../lib/errors.js';
 import { createAuthMiddleware, requireHumanAuth } from '../middleware/auth.js';
@@ -50,6 +51,23 @@ export function createAgentConnectionsRouter(configOverride?: AppConfig): Router
           const auth = requireReqAuth(req);
           const result = await createAgentConnectionHandler(auth, req.body);
           res.status(201).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.patch(
+    '/agent-connections/:id',
+    requireAuth,
+    requireHumanAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await updateAgentConnectionHandler(auth, req.params.id, req.body);
+          res.status(200).json(result);
         } catch (error) {
           next(error);
         }

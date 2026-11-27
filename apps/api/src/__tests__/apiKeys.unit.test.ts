@@ -26,9 +26,17 @@ describe('apiKeys helpers', () => {
     expect(constantTimeEqualHex('abcd', 'abcdef')).toBe(false);
   });
 
-  it('formats canonical agent attribution strings', () => {
+  it('formats canonical agent attribution strings and deduplicates identical names', () => {
     expect(formatAgentAttribution('Chief of Staff', 'Automation Bot')).toBe(
       'Chief of Staff via Automation Bot (agent)',
     );
+    expect(formatAgentAttribution('Automation Bot', 'Automation Bot')).toBe(
+      'Automation Bot (agent)',
+    );
+    expect(formatAgentAttribution('automation bot', 'Automation Bot')).toBe(
+      'Automation Bot (agent)',
+    );
+    expect(formatAgentAttribution(null, 'Automation Bot')).toBe('Automation Bot (agent)');
+    expect(formatAgentAttribution(null, null)).toBe('Agent (agent)');
   });
 });

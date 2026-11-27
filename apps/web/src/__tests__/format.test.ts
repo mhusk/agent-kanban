@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '@agent-kanban/shared';
-import { formatActivitySummary } from '../lib/format.js';
+import { formatActivitySummary, formatActorLabel } from '../lib/format.js';
 
 const USERS: User[] = [
   {
@@ -165,5 +165,109 @@ describe('formatActivitySummary', () => {
       headline: 'completed & reset this card',
       details: ['Next due: Dec 8, 2026', 'Status: Doing → To-Do'],
     });
+  });
+});
+
+describe('formatActorLabel', () => {
+  it('formats distinct agent and platform names as "<agentName> via <platform> (agent)"', () => {
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'agent',
+          actorId: 'user-alex',
+          agentName: 'Chief of Staff',
+          platform: 'Relay Bot',
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('Chief of Staff via Relay Bot (agent)');
+  });
+
+  it('deduplicates when agentName and platform match (case-insensitively)', () => {
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'agent',
+          actorId: 'user-alex',
+          agentName: 'Automation Bot',
+          platform: 'Automation Bot',
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('Automation Bot (agent)');
+
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'agent',
+          actorId: 'user-alex',
+          agentName: 'automation bot',
+          platform: 'Automation Bot',
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('Automation Bot (agent)');
+  });
+
+  it('handles missing agentName/platform, human users, and system actors', () => {
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'agent',
+          actorId: 'user-alex',
+          agentName: null,
+          platform: 'Automation Bot',
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('Automation Bot (agent)');
+
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'agent',
+          actorId: 'user-alex',
+          agentName: 'Chief of Staff',
+          platform: null,
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('Chief of Staff (agent)');
+
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'agent',
+          actorId: 'user-alex',
+          agentName: null,
+          platform: null,
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('Agent (agent)');
+
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'human',
+          actorId: 'user-alex',
+          agentName: null,
+          platform: null,
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('Alex Rivera');
+
+    expect(
+      formatActorLabel(
+        {
+          actorType: 'system',
+          actorId: 'system',
+          agentName: null,
+          platform: null,
+        },
+        USERS_BY_ID,
+      ),
+    ).toBe('System');
   });
 });

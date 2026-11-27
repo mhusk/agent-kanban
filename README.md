@@ -24,7 +24,7 @@ flowchart LR
 
 - **Strict API-Only Storage & Database Access:** Both `firebase/firestore.rules` and `firebase/storage.rules` deny all direct client SDK reads/writes (`allow read, write: if false`). Every human request and agent request flows through `apps/api`.
 - **Per-User Visibility Isolation:** Cards are visible strictly to `visibleToUserIds` (`assignedUserIds ∪ awareUserIds`). Unauthorized card IDs always return `404 Not Found`.
-- **Agent Loop Suppression:** Writes with `actorType === 'agent'` (API keys and `/mcp` calls) are attributed in `activity` (`"<agentName> via <platform> (agent)"`) and **never** emit events to `events/{eventId}` or trigger webhooks.
+- **Agent Loop Suppression:** Writes with `actorType === 'agent'` (API keys and `/mcp` calls) are attributed in `activity` (`"<agentName> via <platform> (agent)"`, or `"<platform> (agent)"` when both match) and **never** emit events to `events/{eventId}` or trigger webhooks.
 - **No Plaintext Secrets:** Agent API keys are stored only as SHA-256 hashes; webhook secrets are envelope-encrypted with AES-256-GCM using `WEBHOOK_ENCRYPTION_KEY`.
 - **Fail-Closed Emulator Guard:** `AUTH_MODE=emulator` is strictly refused at boot outside `FUNCTIONS_EMULATOR=true` or `NODE_ENV=test`.
 
@@ -113,12 +113,13 @@ Detailed step-by-step cloud provisioning and WorkOS AuthKit gotchas live in [`do
 
 ### 2. Custom Agents via REST API Key
 
-1. Open **Settings → Agent Connections (API Keys)** in the PWA and create a key (shown once).
+1. Open **Settings → Agent Connections (API Keys)** in the PWA and create a key (shown once), configuring its `platform` name and optional `defaultAgentName` (both editable inline anytime without rotating the key).
 2. Send requests with:
    ```http
    Authorization: Bearer ak_example_placeholder
    X-Agent-Name: Chief of Staff
    ```
+   _(Omitting `X-Agent-Name` uses the connection's `defaultAgentName`, or falls back to `<platform> (agent)`.)_
 3. Useful endpoints:
    - `GET /api/workspace/snapshot` — single-request prioritized workspace context (`todo` top cards, `doing`, `blocked`, due soon, overdue, recent activity, household roster).
    - `PATCH /api/cards/priorities` & `PATCH /api/cards/bulk` — batch prioritization/updates with `Idempotency-Key` support.

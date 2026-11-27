@@ -644,17 +644,38 @@ export async function fetchAgentConnections(
 
 export async function createAgentConnection(
   getAccessToken: AccessTokenProvider,
-  platform: string,
+  payload: { platform: string; defaultAgentName?: string | null },
 ): Promise<{ connection: AgentConnection; apiKey: string }> {
   const data = await apiRequest<{ connection: unknown; apiKey: string }>('/api/agent-connections', {
     method: 'POST',
-    body: { platform },
+    body: {
+      platform: payload.platform,
+      ...(payload.defaultAgentName !== undefined
+        ? { defaultAgentName: payload.defaultAgentName }
+        : {}),
+    },
     getAccessToken,
   });
   return {
     connection: AgentConnectionSchema.parse(data.connection),
     apiKey: data.apiKey,
   };
+}
+
+export async function updateAgentConnection(
+  getAccessToken: AccessTokenProvider,
+  connectionId: string,
+  payload: { platform?: string; defaultAgentName?: string | null },
+): Promise<AgentConnection> {
+  const data = await apiRequest<{ connection: unknown }>(
+    `/api/agent-connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: 'PATCH',
+      body: payload,
+      getAccessToken,
+    },
+  );
+  return AgentConnectionSchema.parse(data.connection);
 }
 
 export async function rotateAgentConnection(

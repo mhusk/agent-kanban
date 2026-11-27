@@ -27,6 +27,7 @@ import {
   RecurrenceSchema,
   SubscriptionEmulatorSchema,
   SubscriptionSchema,
+  UpdateAgentConnectionSchema,
   UpdateCardInputSchema,
   UpdateSubscriptionSchema,
   UploadUrlRequestSchema,
@@ -441,11 +442,55 @@ describe('Agent connection, Subscription & Event schemas', () => {
       createdAt: NOW,
     });
     expect(connection.platform).toBe('Automation Bot');
+    expect(connection.defaultAgentName).toBeNull();
+
+    const connectionWithAgent = AgentConnectionSchema.parse({
+      id: 'conn_02',
+      ownerUserId: 'user_alex',
+      platform: 'Automation Bot',
+      defaultAgentName: '  Chief of Staff  ',
+      authType: 'api_key',
+      keyPrefix: 'ak_abcd1234',
+      revoked: false,
+      rotatedAt: null,
+      createdAt: NOW,
+    });
+    expect(connectionWithAgent.defaultAgentName).toBe('Chief of Staff');
 
     expect(CreateAgentConnectionSchema.parse({ platform: 'Chief of Staff' }).platform).toBe(
       'Chief of Staff',
     );
+    expect(
+      CreateAgentConnectionSchema.parse({
+        platform: 'Automation Bot',
+        defaultAgentName: '  Chief of Staff  ',
+      }).defaultAgentName,
+    ).toBe('Chief of Staff');
+    expect(
+      CreateAgentConnectionSchema.parse({
+        platform: 'Automation Bot',
+        defaultAgentName: '   ',
+      }).defaultAgentName,
+    ).toBeNull();
     expect(CreateAgentConnectionSchema.safeParse({ platform: '  ' }).success).toBe(false);
+
+    expect(
+      UpdateAgentConnectionSchema.parse({
+        platform: 'Relay Bot',
+        defaultAgentName: 'Chief of Staff',
+      }),
+    ).toEqual({
+      platform: 'Relay Bot',
+      defaultAgentName: 'Chief of Staff',
+    });
+    expect(UpdateAgentConnectionSchema.parse({ defaultAgentName: '' })).toEqual({
+      defaultAgentName: null,
+    });
+    expect(UpdateAgentConnectionSchema.parse({ defaultAgentName: null })).toEqual({
+      defaultAgentName: null,
+    });
+    expect(UpdateAgentConnectionSchema.safeParse({}).success).toBe(false);
+    expect(UpdateAgentConnectionSchema.safeParse({ platform: '   ' }).success).toBe(false);
 
     const createSub = CreateSubscriptionSchema.parse({
       connectionId: 'conn_01',

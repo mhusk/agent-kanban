@@ -90,10 +90,48 @@ test.describe('M2.3 PWA Settings: Household Roster & Agent Connection API Keys',
     // Reload Settings -> secret is hidden, Automation Bot & prefix still displayed
     await page.reload();
     await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
-    await expect(page.getByText('Automation Bot')).toBeVisible();
+    await expect(page.getByText('Automation Bot', { exact: true })).toBeVisible();
     const pageTextAfterReload = await page.locator('body').innerText();
     expect(pageTextAfterReload).not.toContain(apiKey);
     expect(await hasHorizontalOverflow(page)).toBe(false);
+
+    // Edit connection inline: update Platform name and Default agent name without rotating the key
+    const connectionItem = page.locator('li', { hasText: 'Automation Bot' });
+    await connectionItem.getByRole('button', { name: 'Edit' }).click();
+    const editingItem = page
+      .locator('li')
+      .filter({ has: page.getByRole('button', { name: 'Save' }) });
+    await editingItem.getByLabel('Platform name').fill('Relay Bot');
+    await editingItem.getByLabel(/Default agent name/i).fill('Chief of Staff');
+    await editingItem.getByRole('button', { name: 'Save' }).click();
+
+    await expect(page.getByText('Relay Bot', { exact: true })).toBeVisible();
+    await expect(page.getByText('Displays as: Chief of Staff via Relay Bot (agent)')).toBeVisible();
+
+    // Reload and confirm updated metadata persists without horizontal overflow
+    await page.reload();
+    await expect(page.getByText('Relay Bot', { exact: true })).toBeVisible();
+    await expect(page.getByText('Displays as: Chief of Staff via Relay Bot (agent)')).toBeVisible();
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+
+    // Existing API key (without X-Agent-Name) now attributes writes using updated connection metadata
+    const createdCardRes = await request.post('/api/cards', {
+      headers: { authorization: `Bearer ${apiKey}` },
+      data: { title: 'Renamed connection attribution check' },
+    });
+    expect(createdCardRes.status()).toBe(201);
+    const createdCardJson = (await createdCardRes.json()) as { card: { id: string } };
+
+    const commentRes = await request.post(`/api/cards/${createdCardJson.card.id}/comments`, {
+      headers: { authorization: `Bearer ${apiKey}` },
+      data: { text: 'Attributed from renamed connection' },
+    });
+    expect(commentRes.status()).toBe(201);
+    const commentJson = (await commentRes.json()) as {
+      comment: { agentName: string | null; platform: string | null };
+    };
+    expect(commentJson.comment.agentName).toBe('Chief of Staff');
+    expect(commentJson.comment.platform).toBe('Relay Bot');
 
     // Revoke key -> connection marked Revoked -> snapshot returns 401
     await page.getByRole('button', { name: 'Revoke' }).click();

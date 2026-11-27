@@ -221,11 +221,16 @@ export async function authenticateApiKey(
   }
   const owner = parseUserDocument(ownerSnap.id, ownerSnap.data() ?? {});
 
+  const defaultAgentName =
+    typeof connData.defaultAgentName === 'string' ? connData.defaultAgentName.trim() : '';
   const trimmedAgentName = rawAgentNameHeader?.trim() ?? '';
-  const agentName =
+  const agentName = (
     trimmedAgentName.length > 0
-      ? trimmedAgentName.slice(0, MAX_AGENT_NAME_LENGTH)
-      : platform.slice(0, MAX_AGENT_NAME_LENGTH);
+      ? trimmedAgentName
+      : defaultAgentName.length > 0
+        ? defaultAgentName
+        : platform
+  ).slice(0, MAX_AGENT_NAME_LENGTH);
 
   return {
     userId: owner.id,

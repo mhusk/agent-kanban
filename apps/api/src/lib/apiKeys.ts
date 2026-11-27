@@ -46,6 +46,18 @@ export function generateApiKey(): GeneratedApiKey {
   };
 }
 
-export function formatAgentAttribution(agentName: string, platform: string): string {
-  return `${agentName} via ${platform} (agent)`;
+export function formatAgentAttribution(
+  agentName: string | null | undefined,
+  platform: string | null | undefined,
+): string {
+  const trimmedAgent = agentName?.trim() || null;
+  const trimmedPlatform = platform?.trim() || null;
+
+  if (trimmedAgent && trimmedPlatform) {
+    if (trimmedAgent.toLowerCase() === trimmedPlatform.toLowerCase()) {
+      return `${trimmedPlatform} (agent)`;
+    }
+    return `${trimmedAgent} via ${trimmedPlatform} (agent)`;
+  }
+  return `${trimmedAgent ?? trimmedPlatform ?? 'Agent'} (agent)`;
 }

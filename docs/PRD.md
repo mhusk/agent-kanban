@@ -98,8 +98,8 @@ Multi-tenant SaaS, billing, marketplaces, native iOS/Android apps, push/email no
 - **Humans:** WorkOS AuthKit JWT in `Authorization: Bearer <jwt>`.
 - **Agents:**
   - **MCP OAuth 2.1:** WorkOS AuthKit JWT (mapped to `ownerUserId`).
-  - **API Keys:** Platform-level revocable, hashed key bound to an `ownerUserId` (e.g., an owner's `"Automation Bot"` connection).
-  - Every agent request includes `agentName` (HTTP header `X-Agent-Name` or MCP tool argument) so actions are logged as `"<agentName> via <platform> (agent)"`.
+  - **API Keys:** Platform-level revocable, hashed key bound to an `ownerUserId` (e.g., an owner's `"Automation Bot"` connection with an optional editable `defaultAgentName`).
+  - Every agent request resolves `agentName` from HTTP header `X-Agent-Name`, MCP `agentName` argument, or the connection's `defaultAgentName` so actions are logged as `"<agentName> via <platform> (agent)"` (or `"<platform> (agent)"` when both match).
 - **Visibility Enforcement:** Every API/MCP query automatically filters to cards where `ownerUserId` is in `assignedUserIds` or `awareUserIds`.
 
 ### Core Endpoints & MCP Tools
@@ -154,7 +154,7 @@ agent-kanban/
 - `cards/{cardId}/comments/{commentId}`: `actorType`, `actorId`, `agentName`, `platform`, `text`, `mentions[]`, `createdAt`
 - `cards/{cardId}/attachments/{attachmentId}`: `storagePath`, `fileName`, `contentType`, `size`, `uploadedBy`, `createdAt`
 - `activity/{activityId}`: `cardId`, `visibleToUserIds[]`, `actorType`, `actorId`, `agentName`, `platform`, `action`, `diff`, `note`, `createdAt`
-- `agentConnections/{connectionId}`: `ownerUserId`, `platform`, `authType` (`oauth`|`api_key`), `keyPrefix`, `hashedKey`, `revoked`, `rotatedAt`, `createdAt`
+- `agentConnections/{connectionId}`: `ownerUserId`, `platform`, `defaultAgentName`, `authType` (`oauth`|`api_key`), `keyPrefix`, `hashedKey`, `revoked`, `rotatedAt`, `createdAt`
 - `subscriptions/{subscriptionId}`: `ownerUserId`, `connectionId`, `webhookUrl`, `authType` (`bearer`|`hmac`|`standard_webhooks`), `encryptedSecret`, `filters` (`eventTypes`, `tags`, `statuses`, `assignedUserIds`, `mentionedUserIds`), `active`, `lastDelivery`
 - `events/{eventId}`: `type`, `cardId`, `visibleToUserIds[]`, `actor`, `note`, `payload`, `createdAt`, `deliveries`
 

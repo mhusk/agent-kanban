@@ -272,5 +272,117 @@ describe('User-owned Agent Connections, Hashed API Keys & X-Agent-Name Attributi
       { method: 'POST', token: samToken },
     );
     expect(rotateRevoked.status).toBe(400);
+
+    const patchRevoked = await apiRequest<ApiErrorBody>(`/api/agent-connections/${connId}`, {
+      method: 'PATCH',
+      token: samToken,
+      body: { platform: 'Renamed Bot' },
+    });
+    expect(patchRevoked.status).toBe(400);
+    expect(patchRevoked.data.error.code).toBe('CONNECTION_REVOKED');
+  });
+
+  it('supports defaultAgentName on create, PATCH updates without rotating key, and preserves owner/human guards', async () => {
+    // 1. Create connection with defaultAgentName
+    const created = await apiRequest<{ connection: AgentConnection; apiKey: string }>(
+      '/api/agent-connections',
+      {
+        method: 'POST',
+        token: alexToken,
+        body: { platform: 'Automation Bot', defaultAgentName: 'Chief of Staff' },
+      },
+    );
+    expect(created.status).toBe(201);
+    expect(created.data.connection.platform).toBe('Automation Bot');
+    expect(created.data.connection.defaultAgentName).toBe('Chief of Staff');
+    const connId = created.data.connection.id;
+    const apiKey = created.data.apiKey;
+
+    const cardRes = await apiRequest<{ card: Card }>('/api/cards', {
+      method: 'POST',
+      token: apiKey,
+      body: { title: 'Connection metadata test card' },
+    });
+    expect(cardRes.status).toBe(201);
+    const cardId = cardRes.data.card.id;
+
+    // Comment omitting X-Agent-Name uses connection defaultAgentName
+    const c1 = await apiRequest<{ comment: Comment }>(`/api/cards/${cardId}/comments`, {
+      method: 'POST',
+      token: apiKey,
+      body: { text: 'Comment using default agent name' },
+    });
+    expect(c1.status).toBe(201);
+    expect(c1.data.comment.agentName).toBe('Chief of Staff');
+    expect(c1.data.comment.platform).toBe('Automation Bot');
+
+    // Explicit X-Agent-Name overrides defaultAgentName
+    const c2 = await apiRequest<{ comment: Comment }>(`/api/cards/${cardId}/comments`, {
+      method: 'POST',
+      token: apiKey,
+      headers: { 'X-Agent-Name': 'Calendar Specialist' },
+      body: { text: 'Comment overriding agent name' },
+    });
+    expect(c2.status).toBe(201);
+    expect(c2.data.comment.agentName).toBe('Calendar Specialist');
+    expect(c2.data.comment.platform).toBe('Automation Bot');
+
+    // 2. PATCH updates platform & defaultAgentName while keeping existing apiKey valid
+    const patched = await apiRequest<{ connection: AgentConnection }>(
+      `/api/agent-connections/${connId}`,
+      {
+        method: 'PATCH',
+        token: alexToken,
+        body: { platform: 'Relay Bot', defaultAgentName: 'Operations Lead' },
+      },
+    );
+    expect(patched.status).toBe(200);
+    expect(patched.data.connection.platform).toBe('Relay Bot');
+    expect(patched.data.connection.defaultAgentName).toBe('Operations Lead');
+
+    const c3 = await apiRequest<{ comment: Comment }>(`/api/cards/${cardId}/comments`, {
+      method: 'POST',
+      token: apiKey,
+      body: { text: 'Comment after connection rename' },
+    });
+    expect(c3.status).toBe(201);
+    expect(c3.data.comment.agentName).toBe('Operations Lead');
+    expect(c3.data.comment.platform).toBe('Relay Bot');
+
+    // 3. Clearing defaultAgentName via null falls back to updated platform
+    const cleared = await apiRequest<{ connection: AgentConnection }>(
+      `/api/agent-connections/${connId}`,
+      {
+        method: 'PATCH',
+        token: alexToken,
+        body: { defaultAgentName: null },
+      },
+    );
+    expect(cleared.status).toBe(200);
+    expect(cleared.data.connection.defaultAgentName).toBeNull();
+
+    const c4 = await apiRequest<{ comment: Comment }>(`/api/cards/${cardId}/comments`, {
+      method: 'POST',
+      token: apiKey,
+      body: { text: 'Comment after clearing default agent name' },
+    });
+    expect(c4.status).toBe(201);
+    expect(c4.data.comment.agentName).toBe('Relay Bot');
+    expect(c4.data.comment.platform).toBe('Relay Bot');
+
+    // 4. Non-owner gets 404; agent API key gets 403
+    const samPatch = await apiRequest<ApiErrorBody>(`/api/agent-connections/${connId}`, {
+      method: 'PATCH',
+      token: samToken,
+      body: { platform: 'Hijack Bot' },
+    });
+    expect(samPatch.status).toBe(404);
+
+    const agentPatch = await apiRequest<ApiErrorBody>(`/api/agent-connections/${connId}`, {
+      method: 'PATCH',
+      token: apiKey,
+      body: { platform: 'Self-Rename' },
+    });
+    expect(agentPatch.status).toBe(403);
   });
 });

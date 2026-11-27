@@ -3,6 +3,7 @@ import {
   AgentConnectionSchema,
   CreateAgentConnectionSchema,
   EntityIdSchema,
+  UpdateAgentConnectionSchema,
   type AgentConnection,
 } from '@agent-kanban/shared';
 import { generateApiKey } from '../lib/apiKeys.js';
@@ -67,6 +68,7 @@ export async function createAgentConnectionHandler(
     id: connectionId,
     ownerUserId: auth.userId,
     platform: input.platform,
+    defaultAgentName: input.defaultAgentName ?? null,
     authType: 'api_key',
     keyPrefix,
     revoked: false,
@@ -86,6 +88,52 @@ export async function createAgentConnectionHandler(
     connection,
     apiKey: fullKey,
   };
+}
+
+export async function updateAgentConnectionHandler(
+  auth: AuthContext,
+  rawConnectionId: unknown,
+  rawInput: unknown,
+  deps: HandlerDeps = {},
+): Promise<{ connection: AgentConnection }> {
+  const connectionId = parseWithSchema(EntityIdSchema, rawConnectionId, 'Invalid connection ID');
+  const input = parseWithSchema(
+    UpdateAgentConnectionSchema,
+    rawInput,
+    'Invalid agent connection update payload',
+  );
+  const db = deps.db ?? getDb();
+  const connRef = db.collection('agentConnections').doc(connectionId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(connRef);
+    const data = snap.exists ? (snap.data() ?? {}) : null;
+    if (!data || data.ownerUserId !== auth.userId) {
+      throw new AppError(404, 'CONNECTION_NOT_FOUND', 'Agent connection not found');
+    }
+
+    const existing = toPublicAgentConnection(snap.id, data);
+    if (existing.revoked) {
+      throw new AppError(400, 'CONNECTION_REVOKED', 'Cannot update a revoked agent connection');
+    }
+
+    const updates: Partial<Pick<AgentConnection, 'platform' | 'defaultAgentName'>> = {};
+    if (input.platform !== undefined) {
+      updates.platform = input.platform;
+    }
+    if (input.defaultAgentName !== undefined) {
+      updates.defaultAgentName = input.defaultAgentName;
+    }
+
+    const updated = AgentConnectionSchema.parse({
+      ...existing,
+      ...updates,
+    });
+
+    tx.update(connRef, updates);
+
+    return { connection: updated };
+  });
 }
 
 export async function rotateAgentConnectionHandler(

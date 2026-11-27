@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
+import { Pencil, RefreshCw } from 'lucide-react';
 import {
   EventTypeSchema,
   type EventType,
@@ -20,10 +20,14 @@ import {
   isApiError,
   revokeAgentConnection,
   rotateAgentConnection,
+  updateAgentConnection,
   updateSubscription,
 } from '../lib/api.js';
 import { Select } from '../components/Select.js';
 import { useAppAuth } from '../lib/auth.js';
+import { formatActorLabel } from '../lib/format.js';
+
+const EMPTY_USERS_MAP = new Map<string, User>();
 
 const ALL_EVENT_TYPES: readonly EventType[] = EventTypeSchema.options;
 
@@ -102,9 +106,15 @@ export function SettingsPage({ user }: { user: User }) {
   const [memberError, setMemberError] = useState<string | null>(null);
   const [memberSaved, setMemberSaved] = useState<string | null>(null);
 
-  // Create agent connection form
+  // Create & edit agent connections
   const [platformName, setPlatformName] = useState('');
+  const [defaultAgentName, setDefaultAgentName] = useState('');
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [editingConnection, setEditingConnection] = useState<{
+    id: string;
+    platform: string;
+    defaultAgentName: string;
+  } | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     id: string;
     kind: 'rotate' | 'revoke';
@@ -166,9 +176,11 @@ export function SettingsPage({ user }: { user: User }) {
   });
 
   const createConnectionMutation = useMutation({
-    mutationFn: (platform: string) => createAgentConnection(getAccessToken, platform),
+    mutationFn: (payload: { platform: string; defaultAgentName: string | null }) =>
+      createAgentConnection(getAccessToken, payload),
     onSuccess: (result) => {
       setPlatformName('');
+      setDefaultAgentName('');
       setConnectionError(null);
       setCopied(false);
       setRevealedKeyInfo({
@@ -179,6 +191,22 @@ export function SettingsPage({ user }: { user: User }) {
     },
     onError: (err) => {
       setConnectionError(isApiError(err) ? err.message : 'Unable to create agent connection.');
+    },
+  });
+
+  const updateConnectionMutation = useMutation({
+    mutationFn: (payload: { id: string; platform: string; defaultAgentName: string | null }) =>
+      updateAgentConnection(getAccessToken, payload.id, {
+        platform: payload.platform,
+        defaultAgentName: payload.defaultAgentName,
+      }),
+    onSuccess: () => {
+      setEditingConnection(null);
+      setConnectionError(null);
+      void queryClient.invalidateQueries({ queryKey: ['agent-connections', user.id] });
+    },
+    onError: (err) => {
+      setConnectionError(isApiError(err) ? err.message : 'Unable to update agent connection.');
     },
   });
 
@@ -280,13 +308,17 @@ export function SettingsPage({ user }: { user: User }) {
 
   const handleCreateConnection = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const trimmed = platformName.trim();
-    if (!trimmed) {
+    const trimmedPlatform = platformName.trim();
+    if (!trimmedPlatform) {
       setConnectionError('Platform name is required.');
       return;
     }
+    const trimmedAgentName = defaultAgentName.trim();
     setConnectionError(null);
-    createConnectionMutation.mutate(trimmed);
+    createConnectionMutation.mutate({
+      platform: trimmedPlatform,
+      defaultAgentName: trimmedAgentName.length > 0 ? trimmedAgentName : null,
+    });
   };
 
   const handleToggleEventType = (eventType: EventType) => {
@@ -515,9 +547,10 @@ export function SettingsPage({ user }: { user: User }) {
             Agent Connections (API Keys)
           </h2>
           <p className="mt-1 text-xs text-slate-600">
-            Keys inherit your card visibility. Send{' '}
-            <code className="rounded bg-slate-100 px-1">X-Agent-Name</code> to attribute actions to
-            a specific assistant.
+            Keys inherit your card visibility. Set an optional default agent name on each
+            connection, or override it per request via{' '}
+            <code className="rounded bg-slate-100 px-1">X-Agent-Name</code> or the MCP{' '}
+            <code className="rounded bg-slate-100 px-1">agentName</code> argument.
           </p>
         </div>
 
@@ -527,14 +560,27 @@ export function SettingsPage({ user }: { user: User }) {
           </p>
         ) : null}
 
-        <form onSubmit={handleCreateConnection} className="flex flex-col gap-2 sm:flex-row">
+        <form
+          onSubmit={handleCreateConnection}
+          className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]"
+        >
           <input
             type="text"
             aria-label="Platform name"
+            maxLength={100}
             placeholder="Platform name (e.g., Automation Bot)"
             value={platformName}
             onChange={(event) => setPlatformName(event.target.value)}
-            className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-sm"
+            className="min-h-11 min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm"
+          />
+          <input
+            type="text"
+            aria-label="Default agent name"
+            maxLength={120}
+            placeholder="Default agent name (optional, e.g., Chief of Staff)"
+            value={defaultAgentName}
+            onChange={(event) => setDefaultAgentName(event.target.value)}
+            className="min-h-11 min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm"
           />
           <button
             type="submit"
@@ -554,98 +600,252 @@ export function SettingsPage({ user }: { user: User }) {
         ) : (
           <ul className="space-y-2.5">
             {connections.map((conn) => {
+              const isEditing = editingConnection?.id === conn.id;
               const isConfirmingRotate =
                 confirmAction?.id === conn.id && confirmAction.kind === 'rotate';
               const isConfirmingRevoke =
                 confirmAction?.id === conn.id && confirmAction.kind === 'revoke';
+              const attributionPreview = formatActorLabel(
+                {
+                  actorType: 'agent',
+                  actorId: '',
+                  agentName: conn.defaultAgentName,
+                  platform: conn.platform,
+                },
+                EMPTY_USERS_MAP,
+              );
 
               return (
                 <li
                   key={conn.id}
                   className="space-y-2 rounded-xl border border-slate-200 p-3.5 text-sm"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-slate-900">{conn.platform}</p>
-                      <p className="mt-0.5 text-xs text-slate-600">
-                        <code className="rounded bg-slate-100 px-1.5 py-0.5">
-                          {conn.keyPrefix ? `${conn.keyPrefix}…` : 'OAuth'}
-                        </code>{' '}
-                        · Created {formatShortDate(conn.createdAt)}
-                        {conn.rotatedAt ? ` · Rotated ${formatShortDate(conn.rotatedAt)}` : ''}
-                      </p>
-                    </div>
-
-                    <span
-                      className={[
-                        'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                        conn.revoked
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-emerald-100 text-emerald-900',
-                      ].join(' ')}
+                  {isEditing ? (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const trimmedPlatform = editingConnection.platform.trim();
+                        if (!trimmedPlatform) {
+                          setConnectionError('Platform name is required.');
+                          return;
+                        }
+                        const trimmedAgent = editingConnection.defaultAgentName.trim();
+                        setConnectionError(null);
+                        updateConnectionMutation.mutate({
+                          id: conn.id,
+                          platform: trimmedPlatform,
+                          defaultAgentName: trimmedAgent.length > 0 ? trimmedAgent : null,
+                        });
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          setEditingConnection(null);
+                        }
+                      }}
+                      className="space-y-3"
                     >
-                      {conn.revoked ? 'Revoked' : 'Active'}
-                    </span>
-                  </div>
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                        <div>
+                          <label
+                            htmlFor={`edit-platform-${conn.id}`}
+                            className="block text-xs font-medium text-slate-700"
+                          >
+                            Platform name
+                          </label>
+                          <input
+                            id={`edit-platform-${conn.id}`}
+                            type="text"
+                            required
+                            maxLength={100}
+                            autoFocus
+                            disabled={updateConnectionMutation.isPending}
+                            value={editingConnection.platform}
+                            onChange={(event) =>
+                              setEditingConnection((prev) =>
+                                prev ? { ...prev, platform: event.target.value } : prev,
+                              )
+                            }
+                            className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`edit-agent-name-${conn.id}`}
+                            className="block text-xs font-medium text-slate-700"
+                          >
+                            Default agent name (optional)
+                          </label>
+                          <input
+                            id={`edit-agent-name-${conn.id}`}
+                            type="text"
+                            maxLength={120}
+                            disabled={updateConnectionMutation.isPending}
+                            placeholder="e.g., Chief of Staff"
+                            value={editingConnection.defaultAgentName}
+                            onChange={(event) =>
+                              setEditingConnection((prev) =>
+                                prev ? { ...prev, defaultAgentName: event.target.value } : prev,
+                              )
+                            }
+                            className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm"
+                          />
+                        </div>
+                      </div>
 
-                  {!conn.revoked ? (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      {isConfirmingRotate ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={rotateConnectionMutation.isPending}
-                            onClick={() => rotateConnectionMutation.mutate(conn.id)}
-                            className="min-h-10 rounded-lg bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800"
-                          >
-                            Confirm rotate
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmAction(null)}
-                            className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : isConfirmingRevoke ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={revokeConnectionMutation.isPending}
-                            onClick={() => revokeConnectionMutation.mutate(conn.id)}
-                            className="min-h-10 rounded-lg bg-rose-700 px-3 text-xs font-semibold text-white hover:bg-rose-800"
-                          >
-                            Confirm revoke
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmAction(null)}
-                            className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmAction({ id: conn.id, kind: 'rotate' })}
-                            className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-100"
-                          >
-                            Rotate
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmAction({ id: conn.id, kind: 'revoke' })}
-                            className="min-h-10 rounded-lg border border-rose-200 bg-white px-3 text-xs font-medium text-rose-700 hover:bg-rose-50"
-                          >
-                            Revoke
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  ) : null}
+                      <p className="text-xs break-words text-slate-600">
+                        Displays as:{' '}
+                        <span className="font-medium text-slate-900">
+                          {formatActorLabel(
+                            {
+                              actorType: 'agent',
+                              actorId: '',
+                              agentName: editingConnection.defaultAgentName.trim() || null,
+                              platform: editingConnection.platform.trim() || conn.platform,
+                            },
+                            EMPTY_USERS_MAP,
+                          )}
+                        </span>
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="submit"
+                          disabled={
+                            updateConnectionMutation.isPending ||
+                            editingConnection.platform.trim().length === 0
+                          }
+                          className="min-h-10 rounded-lg bg-slate-900 px-3.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                          {updateConnectionMutation.isPending ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updateConnectionMutation.isPending}
+                          onClick={() => setEditingConnection(null)}
+                          className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-900">{conn.platform}</p>
+                          {conn.defaultAgentName ? (
+                            <p className="mt-0.5 text-xs break-words text-slate-700">
+                              Default agent:{' '}
+                              <span className="font-medium">{conn.defaultAgentName}</span>
+                            </p>
+                          ) : null}
+                          <p className="mt-0.5 text-xs break-words text-slate-500">
+                            Displays as: {attributionPreview}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-600">
+                            <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                              {conn.keyPrefix ? `${conn.keyPrefix}…` : 'OAuth'}
+                            </code>{' '}
+                            · Created {formatShortDate(conn.createdAt)}
+                            {conn.rotatedAt ? ` · Rotated ${formatShortDate(conn.rotatedAt)}` : ''}
+                          </p>
+                        </div>
+
+                        <span
+                          className={[
+                            'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                            conn.revoked
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-emerald-100 text-emerald-900',
+                          ].join(' ')}
+                        >
+                          {conn.revoked ? 'Revoked' : 'Active'}
+                        </span>
+                      </div>
+
+                      {!conn.revoked ? (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {isConfirmingRotate ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={rotateConnectionMutation.isPending}
+                                onClick={() => rotateConnectionMutation.mutate(conn.id)}
+                                className="min-h-10 rounded-lg bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800"
+                              >
+                                Confirm rotate
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmAction(null)}
+                                className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : isConfirmingRevoke ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={revokeConnectionMutation.isPending}
+                                onClick={() => revokeConnectionMutation.mutate(conn.id)}
+                                className="min-h-10 rounded-lg bg-rose-700 px-3 text-xs font-semibold text-white hover:bg-rose-800"
+                              >
+                                Confirm revoke
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmAction(null)}
+                                className="min-h-10 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmAction(null);
+                                  setConnectionError(null);
+                                  setEditingConnection({
+                                    id: conn.id,
+                                    platform: conn.platform,
+                                    defaultAgentName: conn.defaultAgentName ?? '',
+                                  });
+                                }}
+                                className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-100"
+                              >
+                                <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingConnection(null);
+                                  setConfirmAction({ id: conn.id, kind: 'rotate' });
+                                }}
+                                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-100"
+                              >
+                                Rotate
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingConnection(null);
+                                  setConfirmAction({ id: conn.id, kind: 'revoke' });
+                                }}
+                                className="min-h-10 rounded-lg border border-rose-200 bg-white px-3 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                              >
+                                Revoke
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </li>
               );
             })}

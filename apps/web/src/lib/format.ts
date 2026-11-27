@@ -127,7 +127,16 @@ export function formatActorLabel(
   usersById: ReadonlyMap<string, User>,
 ): string {
   if (entry.actorType === 'agent') {
-    return `${entry.agentName ?? 'Agent'} via ${entry.platform ?? 'API'} (agent)`;
+    const agentName = entry.agentName?.trim() || null;
+    const platform = entry.platform?.trim() || null;
+
+    if (agentName && platform) {
+      if (agentName.toLowerCase() === platform.toLowerCase()) {
+        return `${platform} (agent)`;
+      }
+      return `${agentName} via ${platform} (agent)`;
+    }
+    return `${agentName ?? platform ?? 'Agent'} (agent)`;
   }
   if (entry.actorType === 'system') {
     return 'System';

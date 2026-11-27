@@ -13,10 +13,15 @@ import {
 export const AgentAuthTypeSchema = z.enum(['oauth', 'api_key']);
 export type AgentAuthType = z.infer<typeof AgentAuthTypeSchema>;
 
+const DefaultAgentNameInputSchema = z
+  .union([z.string().trim().max(120), z.null()])
+  .transform((val) => (val === null || val.length === 0 ? null : val));
+
 export const AgentConnectionSchema = z.object({
   id: EntityIdSchema,
   ownerUserId: EntityIdSchema,
   platform: z.string().trim().min(1).max(100),
+  defaultAgentName: z.string().trim().min(1).max(120).nullable().default(null),
   authType: AgentAuthTypeSchema,
   keyPrefix: z.string().trim().min(1).max(32).nullable(),
   revoked: z.boolean().default(false),
@@ -27,8 +32,20 @@ export type AgentConnection = z.infer<typeof AgentConnectionSchema>;
 
 export const CreateAgentConnectionSchema = z.object({
   platform: z.string().trim().min(1).max(100),
+  defaultAgentName: DefaultAgentNameInputSchema.optional(),
 });
 export type CreateAgentConnection = z.infer<typeof CreateAgentConnectionSchema>;
+
+export const UpdateAgentConnectionSchema = z
+  .object({
+    platform: z.string().trim().min(1).max(100).optional(),
+    defaultAgentName: DefaultAgentNameInputSchema.optional(),
+  })
+  .refine(
+    (data) => data.platform !== undefined || data.defaultAgentName !== undefined,
+    'At least one field (platform or defaultAgentName) must be provided',
+  );
+export type UpdateAgentConnection = z.infer<typeof UpdateAgentConnectionSchema>;
 
 export const EventTypeSchema = z.enum([
   'card.created',
