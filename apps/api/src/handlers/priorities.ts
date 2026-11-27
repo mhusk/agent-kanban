@@ -5,10 +5,12 @@ import {
   CommentSchema,
   SmartQueryInputSchema,
   UserSchema,
+  isCardDeferred,
   isDueSoon,
   isOverdue,
   normalizeTag,
   normalizeTags,
+  projectNextOccurrences,
   resolveEffectiveDueInstant,
   type Card,
   type Comment,
@@ -261,44 +263,96 @@ export async function smartQueryCardsHandler(
 
   const visibleCards = snap.docs.map((doc) => parseStoredCard(doc.id, doc.data()));
 
-  if (input.query === 'overdue_or_due_within_days') {
-    const days = input.days ?? 3;
-    const matched = visibleCards.filter(
-      (card) =>
-        card.status !== 'done' && (isOverdue(card, now, tz) || isDueSoon(card, now, tz, days)),
-    );
-    matched.sort((a, b) => {
-      const aDueMs = resolveEffectiveDueInstant(a.due!, a.dueHasTime, tz).getTime();
-      const bDueMs = resolveEffectiveDueInstant(b.due!, b.dueHasTime, tz).getTime();
-      if (aDueMs !== bDueMs) {
-        return aDueMs - bDueMs;
-      }
-      return compareTodoCards(a, b);
-    });
-    return {
-      query: input.query,
-      days,
-      timezone: tz,
-      cards: matched,
-    };
+  switch (input.query) {
+    case 'overdue_or_due_within_days': {
+      const days = input.days ?? 3;
+      const matched = visibleCards.filter(
+        (card) =>
+          card.status !== 'done' && (isOverdue(card, now, tz) || isDueSoon(card, now, tz, days)),
+      );
+      matched.sort((a, b) => {
+        const aDueMs = resolveEffectiveDueInstant(a.due!, a.dueHasTime, tz).getTime();
+        const bDueMs = resolveEffectiveDueInstant(b.due!, b.dueHasTime, tz).getTime();
+        if (aDueMs !== bDueMs) {
+          return aDueMs - bDueMs;
+        }
+        return compareTodoCards(a, b);
+      });
+      return {
+        query: input.query,
+        days,
+        timezone: tz,
+        cards: matched,
+      };
+    }
+    case 'stale_in_todo_days': {
+      const days = input.days ?? 14;
+      const cutoffMs = now.getTime() - days * 24 * 60 * 60 * 1000;
+      const stale = visibleCards.filter(
+        (card) =>
+          card.status === 'todo' &&
+          !isCardDeferred(card, now) &&
+          Date.parse(card.enteredStatusAt) <= cutoffMs,
+      );
+      stale.sort((a, b) => {
+        const diff = Date.parse(a.enteredStatusAt) - Date.parse(b.enteredStatusAt);
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
+      });
+
+      return {
+        query: input.query,
+        days,
+        timezone: tz,
+        cards: stale,
+      };
+    }
+    case 'upcoming_recurring': {
+      const days = input.days ?? 30;
+      const horizonEndMs = now.getTime() + days * 24 * 60 * 60 * 1000;
+      const matched = visibleCards.filter((card) => {
+        if (card.recurrence === null) {
+          return false;
+        }
+        if (card.due !== null && Date.parse(card.due) <= horizonEndMs) {
+          return true;
+        }
+        try {
+          const next = projectNextOccurrences(card.recurrence, now, card.due, 1, tz, {
+            dueHasTime: card.dueHasTime,
+          })[0];
+          return next !== undefined && Date.parse(next) <= horizonEndMs;
+        } catch (error) {
+          throw new AppError(
+            400,
+            'INVALID_RECURRENCE',
+            error instanceof Error ? error.message : 'Invalid card recurrence rule',
+          );
+        }
+      });
+      matched.sort((a, b) => {
+        const aDue = a.due !== null ? Date.parse(a.due) : Number.POSITIVE_INFINITY;
+        const bDue = b.due !== null ? Date.parse(b.due) : Number.POSITIVE_INFINITY;
+        if (aDue !== bDue) {
+          return aDue - bDue;
+        }
+        return a.id.localeCompare(b.id);
+      });
+      return {
+        query: input.query,
+        days,
+        timezone: tz,
+        cards: matched,
+      };
+    }
+    default: {
+      const unsupported: never = input.query;
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        `Unsupported smart query "${String(unsupported)}"`,
+      );
+    }
   }
-
-  const days = input.days ?? 14;
-  const cutoffMs = now.getTime() - days * 24 * 60 * 60 * 1000;
-  const stale = visibleCards.filter(
-    (card) => card.status === 'todo' && Date.parse(card.enteredStatusAt) <= cutoffMs,
-  );
-  stale.sort((a, b) => {
-    const diff = Date.parse(a.enteredStatusAt) - Date.parse(b.enteredStatusAt);
-    return diff !== 0 ? diff : a.id.localeCompare(b.id);
-  });
-
-  return {
-    query: input.query,
-    days,
-    timezone: tz,
-    cards: stale,
-  };
 }
 
 export interface SnapshotCardSummary extends Card {
@@ -325,9 +379,12 @@ export interface WorkspaceSnapshotResult {
     blocked: number;
     done: number;
     open: number;
+    deferred: number;
+    recurring: number;
   };
   tags: WorkspaceSnapshotTagSummary[];
   cards: SnapshotCardSummary[];
+  deferredCards: SnapshotCardSummary[];
 }
 
 export async function workspaceSnapshotHandler(
@@ -358,16 +415,32 @@ export async function workspaceSnapshotHandler(
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const allCards = cardsSnap.docs.map((doc) => parseStoredCard(doc.id, doc.data()));
+  const deferredSource = allCards
+    .filter((card) => isCardDeferred(card, now))
+    .sort((a, b) => {
+      const diff = Date.parse(a.deferUntil ?? '') - Date.parse(b.deferUntil ?? '');
+      return diff !== 0 ? diff : a.id.localeCompare(b.id);
+    });
+  const deferredIds = new Set(deferredSource.map((card) => card.id));
 
-  const todoCards = allCards.filter((c) => c.status === 'todo').sort(compareTodoCards);
-  const doingCards = allCards.filter((c) => c.status === 'doing').sort(compareUpdatedDesc);
-  const blockedCards = allCards.filter((c) => c.status === 'blocked').sort(compareUpdatedDesc);
-  const doneCount = allCards.filter((c) => c.status === 'done').length;
+  const todoCards = allCards
+    .filter((card) => card.status === 'todo' && !deferredIds.has(card.id))
+    .sort(compareTodoCards);
+  const doingCards = allCards
+    .filter((card) => card.status === 'doing' && !deferredIds.has(card.id))
+    .sort(compareUpdatedDesc);
+  const blockedCards = allCards
+    .filter((card) => card.status === 'blocked' && !deferredIds.has(card.id))
+    .sort(compareUpdatedDesc);
+  const doneCount = allCards.filter(
+    (card) => card.status === 'done' && !deferredIds.has(card.id),
+  ).length;
 
   const openCards = [...todoCards, ...doingCards, ...blockedCards];
+  const summaryCards = [...openCards, ...deferredSource];
 
   const latestCommentSnaps = await Promise.all(
-    openCards.map((card) =>
+    summaryCards.map((card) =>
       db
         .collection('cards')
         .doc(card.id)
@@ -378,7 +451,7 @@ export async function workspaceSnapshotHandler(
     ),
   );
 
-  const cards: SnapshotCardSummary[] = openCards.map((card, index) => {
+  const summarize = (card: Card, index: number): SnapshotCardSummary => {
     const commentSnap = latestCommentSnaps[index]!;
     const commentDoc = commentSnap.docs[0];
     let latestComment: Comment | null = null;
@@ -408,7 +481,12 @@ export async function workspaceSnapshotHandler(
       linkCount: card.links.length,
       latestComment,
     };
-  });
+  };
+
+  const cards = openCards.map((card, index) => summarize(card, index));
+  const deferredCards = deferredSource.map((card, index) =>
+    summarize(card, openCards.length + index),
+  );
 
   const tags = aggregateTagSummaries(allCards).map((summary) => ({
     tag: summary.tag,
@@ -426,8 +504,11 @@ export async function workspaceSnapshotHandler(
       blocked: blockedCards.length,
       done: doneCount,
       open: openCards.length,
+      deferred: deferredCards.length,
+      recurring: allCards.filter((card) => card.recurrence !== null).length,
     },
     tags,
     cards,
+    deferredCards,
   };
 }

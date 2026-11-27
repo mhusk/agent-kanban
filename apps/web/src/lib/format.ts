@@ -389,6 +389,9 @@ export function formatActivitySummary(
       return { headline: 'commented', details: [`"${preview}"`] };
     }
 
+    case 'card.rescore_requested':
+      return { headline: 'requested an AI rescore', details: [] };
+
     case 'card.prioritized': {
       const details: string[] = [];
       if (diff.priorityScore) {
@@ -533,6 +536,11 @@ export function formatActivitySummary(
         details.push(formatUpdatedFieldDiff(key, fieldDiff.from, fieldDiff.to, usersById));
       }
       return { headline: 'updated this card', details };
+    }
+
+    default: {
+      const unsupported: never = entry.action;
+      throw new Error(`Unsupported activity action: ${String(unsupported)}`);
     }
   }
 }

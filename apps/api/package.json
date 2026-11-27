@@ -33,6 +33,7 @@
     "test:events": "vitest run tests/events.test.ts",
     "test:webhooks": "vitest run tests/webhooks.test.ts",
     "test:jobs": "vitest run tests/jobs.test.ts",
+    "test:schedule": "vitest run tests/schedule-nudges.test.ts",
     "test:attachments": "vitest run tests/attachments.test.ts",
     "test:integration": "vitest run tests/ --exclude tests/rules.test.ts --no-file-parallelism"
   },

@@ -11,19 +11,25 @@ import {
   CreateCardInputSchema,
   EntityIdSchema,
   IsoDateTimeSchema,
+  RescoreCardInputSchema,
   SearchCardsQuerySchema,
   UpdateCardInputSchema,
   buildSearchTokens,
   computeNextDueDate,
+  computeRecurrenceDeferUntil,
+  isCardDeferred,
   matchesSearchQuery,
   normalizeTag,
   normalizeTags,
+  projectNextOccurrences,
+  resolveDefaultLeadDays,
   tokenizeQuery,
   type Activity,
   type Card,
   type CardStatus,
   type Checklist,
   type LinkAttachment,
+  type Recurrence,
 } from '@agent-kanban/shared';
 import { getConfig } from '../config.js';
 import { AppError, parseWithSchema } from '../lib/errors.js';
@@ -59,6 +65,8 @@ const TRACKED_CARD_DIFF_FIELDS = [
   'dueFirm',
   'dueHasTime',
   'recurrence',
+  'pinned',
+  'deferUntil',
   'archived',
   'trelloUrl',
   'trelloShortLink',
@@ -103,12 +111,17 @@ function normalizeUrlForComparison(url: string): string {
 
 /**
  * Canonical `todo` sort:
- * 1. `priorityScore DESC` (nulls last)
- * 2. `due ASC` (nulls last)
- * 3. `createdAt ASC`
- * 4. `id ASC`
+ * 1. `pinned DESC` (`true` before `false`)
+ * 2. `priorityScore DESC` (nulls last)
+ * 3. `due ASC` (nulls last)
+ * 4. `createdAt ASC`
+ * 5. `id ASC`
  */
 export function compareTodoCards(a: Card, b: Card): number {
+  if (a.pinned !== b.pinned) {
+    return a.pinned ? -1 : 1;
+  }
+
   const aScore = a.priorityScore;
   const bScore = b.priorityScore;
   if (aScore !== null && bScore !== null) {
@@ -224,6 +237,12 @@ const ListCardsQuerySchema = z.object({
   updatedSince: z.string().trim().min(1).optional(),
   archived: z.enum(['true', 'false', 'all']).optional().default('false'),
   sort: z.enum(['priority', 'updated']).optional(),
+  includeDeferred: z.enum(['true', 'false']).optional(),
+  hasRecurrence: z.enum(['true', 'false']).optional(),
+});
+
+const ListRecurringCardsQuerySchema = z.object({
+  horizonDays: z.coerce.number().int().min(1).max(366).optional().default(60),
 });
 
 const TrelloLookupQuerySchema = z.object({
@@ -324,6 +343,9 @@ export async function createCardHandler(
         dueFirm: input.dueFirm,
         dueHasTime: input.dueHasTime,
         recurrence: input.recurrence,
+        pinned: input.pinned,
+        deferUntil: input.deferUntil,
+        lastCompletedAt: null,
         links,
         checklists,
         commentCount: 0,
@@ -375,6 +397,7 @@ export async function listCardsHandler(
 ): Promise<{ cards: Card[] }> {
   const query = parseWithSchema(ListCardsQuerySchema, rawQuery ?? {}, 'Invalid card list filters');
   const db = deps.db ?? getDb();
+  const now = (deps.now ?? (() => new Date()))();
 
   let statusFilter: CardStatus[] | undefined;
   if (query.status !== undefined) {
@@ -397,6 +420,9 @@ export async function listCardsHandler(
   const updatedSinceMs =
     query.updatedSince !== undefined ? parseDateFilterMs(query.updatedSince, 'start') : undefined;
   const tagFilter = query.tag !== undefined ? normalizeTag(query.tag) : undefined;
+  const queryingTodoOnly = statusFilter?.length === 1 && statusFilter[0] === 'todo';
+  const includeDeferred =
+    query.includeDeferred !== undefined ? query.includeDeferred === 'true' : !queryingTodoOnly;
 
   let firestoreQuery = db
     .collection('cards')
@@ -433,6 +459,15 @@ export async function listCardsHandler(
         }
       }
       if (updatedSinceMs !== undefined && Date.parse(card.updatedAt) < updatedSinceMs) {
+        return false;
+      }
+      if (!includeDeferred && isCardDeferred(card, now)) {
+        return false;
+      }
+      if (query.hasRecurrence === 'true' && card.recurrence === null) {
+        return false;
+      }
+      if (query.hasRecurrence === 'false' && card.recurrence !== null) {
         return false;
       }
       return true;
@@ -644,6 +679,8 @@ export async function updateCardHandler(
       dueFirm: input.dueFirm !== undefined ? input.dueFirm : existing.dueFirm,
       dueHasTime: input.dueHasTime !== undefined ? input.dueHasTime : existing.dueHasTime,
       recurrence: input.recurrence !== undefined ? input.recurrence : existing.recurrence,
+      pinned: input.pinned !== undefined ? input.pinned : existing.pinned,
+      deferUntil: input.deferUntil !== undefined ? input.deferUntil : existing.deferUntil,
       archived: input.archived !== undefined ? input.archived : existing.archived,
       trelloUrl,
       trelloShortLink,
@@ -788,15 +825,18 @@ export async function archiveCardHandler(
     }
 
     const nowIso = nextMonotonicIso(existing.updatedAt, getNow());
+    const archiving = input.archived === true;
 
     const nextCard = CardSchema.parse({
       ...existing,
       archived: input.archived,
+      pinned: archiving ? false : existing.pinned,
+      deferUntil: archiving ? null : existing.deferUntil,
       lastTouchedAt: nowIso,
       updatedAt: nowIso,
     });
 
-    const diff = computeFieldDiff(existing, nextCard, ['archived']);
+    const diff = computeFieldDiff(existing, nextCard, ['archived', 'pinned', 'deferUntil']);
     const activity = buildActivityEntry({
       cardId: nextCard.id,
       visibleToUserIds: nextCard.visibleToUserIds,
@@ -865,12 +905,20 @@ export async function completeCardHandler(
       const nextCard = CardSchema.parse({
         ...existing,
         status: 'done',
+        pinned: false,
+        deferUntil: null,
+        lastCompletedAt: nowIso,
         enteredStatusAt: existing.status !== 'done' ? nowIso : existing.enteredStatusAt,
         lastTouchedAt: nowIso,
         updatedAt: nowIso,
       });
 
-      const diff = computeFieldDiff(existing, nextCard, ['status']);
+      const diff = computeFieldDiff(existing, nextCard, [
+        'status',
+        'pinned',
+        'deferUntil',
+        'lastCompletedAt',
+      ]);
       const activity = buildActivityEntry({
         cardId: nextCard.id,
         visibleToUserIds: nextCard.visibleToUserIds,
@@ -916,6 +964,19 @@ export async function completeCardHandler(
       );
     }
 
+    let deferUntil: string | null;
+    try {
+      deferUntil = computeRecurrenceDeferUntil(existing.recurrence, nextDue, nowIso, defaultTz, {
+        dueHasTime: existing.dueHasTime,
+      });
+    } catch (error) {
+      throw new AppError(
+        400,
+        'INVALID_RECURRENCE',
+        error instanceof Error ? error.message : 'Invalid card recurrence rule',
+      );
+    }
+
     const resetChecklists: Checklist[] = existing.checklists.map((chk) => ({
       ...chk,
       items: chk.items.map((item) => ({
@@ -931,6 +992,9 @@ export async function completeCardHandler(
       checklists: resetChecklists,
       priorityScore: null,
       priorityReason: null,
+      pinned: false,
+      deferUntil,
+      lastCompletedAt: nowIso,
       dueSoonNotifiedAt: null,
       overdueNotifiedAt: null,
       enteredStatusAt: nowIso,
@@ -944,6 +1008,9 @@ export async function completeCardHandler(
       'priorityScore',
       'priorityReason',
       'checklists',
+      'pinned',
+      'deferUntil',
+      'lastCompletedAt',
     ]);
     // Always record completed due -> next due on recurring completions even if unchanged.
     diff.due = {
@@ -1071,4 +1138,298 @@ export async function listGlobalActivityHandler(
     activity,
     nextCursor: hasMore && lastEntry ? lastEntry.id : null,
   };
+}
+
+const MAX_SCHEDULE_OCCURRENCES = 400;
+const MS_PER_DAY = 86_400_000;
+
+function describeRecurrenceCadence(recurrence: Recurrence): string {
+  switch (recurrence.type) {
+    case 'interval_after_completion': {
+      if (recurrence.every === 1) {
+        switch (recurrence.unit) {
+          case 'days':
+            return 'every day';
+          case 'weeks':
+            return 'every week';
+          case 'months':
+            return 'every month';
+          default: {
+            const unsupported: never = recurrence.unit;
+            return `every ${String(unsupported)}`;
+          }
+        }
+      }
+      return `every ${recurrence.every} ${recurrence.unit}`;
+    }
+    case 'cron':
+      return recurrence.expression;
+    default: {
+      const unsupported: never = recurrence;
+      throw new Error(`Unsupported recurrence type: ${String(unsupported)}`);
+    }
+  }
+}
+
+function effectiveLeadDaysForRecurrence(
+  recurrence: Recurrence,
+  nextDueIso: string | null,
+  completedAt: string | null,
+  now: Date,
+  defaultTz: string,
+  dueHasTime: boolean,
+): number {
+  if (typeof recurrence.leadDays === 'number') {
+    return recurrence.leadDays;
+  }
+  if (nextDueIso === null) {
+    return 0;
+  }
+  return resolveDefaultLeadDays(recurrence, nextDueIso, completedAt ?? now, defaultTz, {
+    dueHasTime,
+  });
+}
+
+function projectNextOccurrence(
+  recurrence: Recurrence,
+  from: Date | string,
+  currentDue: string | null,
+  defaultTz: string,
+  dueHasTime: boolean,
+): string {
+  try {
+    const projected = projectNextOccurrences(recurrence, from, currentDue, 1, defaultTz, {
+      dueHasTime,
+    });
+    const next = projected[0];
+    if (!next) {
+      throw new Error('Recurrence projection returned no occurrence');
+    }
+    return next;
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError(
+      400,
+      'INVALID_RECURRENCE',
+      error instanceof Error ? error.message : 'Invalid card recurrence rule',
+    );
+  }
+}
+
+function projectOccurrencesWithinHorizon(
+  recurrence: Recurrence,
+  from: Date,
+  currentDue: string | null,
+  horizonDays: number,
+  defaultTz: string,
+  dueHasTime: boolean,
+): string[] {
+  const horizonEndMs = from.getTime() + horizonDays * MS_PER_DAY;
+
+  switch (recurrence.type) {
+    case 'interval_after_completion': {
+      const next = projectNextOccurrence(recurrence, from, currentDue, defaultTz, dueHasTime);
+      return Date.parse(next) <= horizonEndMs ? [next] : [];
+    }
+    case 'cron': {
+      const occurrences: string[] = [];
+      let cursorFrom: Date | string = from;
+      let cursorDue = currentDue;
+      for (let index = 0; index < MAX_SCHEDULE_OCCURRENCES; index += 1) {
+        const next = projectNextOccurrence(
+          recurrence,
+          cursorFrom,
+          cursorDue,
+          defaultTz,
+          dueHasTime,
+        );
+        const nextMs = Date.parse(next);
+        if (nextMs > horizonEndMs) {
+          break;
+        }
+        if (cursorDue !== null && nextMs <= Date.parse(cursorDue)) {
+          break;
+        }
+        occurrences.push(next);
+        cursorFrom = next;
+        cursorDue = next;
+      }
+      return occurrences;
+    }
+    default: {
+      const unsupported: never = recurrence;
+      throw new AppError(
+        400,
+        'INVALID_RECURRENCE',
+        `Unsupported recurrence type: ${String(unsupported)}`,
+      );
+    }
+  }
+}
+
+function earliestScheduleInstantMs(entry: RecurringScheduleEntry): number {
+  const candidates = [entry.card.due, entry.nextOccurrences[0] ?? null]
+    .filter((value): value is string => value !== null)
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value));
+  if (candidates.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.min(...candidates);
+}
+
+export interface RecurringScheduleEntry {
+  card: Card;
+  nextOccurrences: string[];
+  cadence: string;
+  effectiveLeadDays: number;
+}
+
+export interface RecurringScheduleResult {
+  generatedAt: string;
+  timezone: string;
+  horizonDays: number;
+  recurring: RecurringScheduleEntry[];
+  deferredCards: Card[];
+}
+
+export async function listRecurringCardsHandler(
+  auth: AuthContext,
+  rawQuery: unknown,
+  deps: CompleteCardHandlerDeps = {},
+): Promise<RecurringScheduleResult> {
+  const query = parseWithSchema(
+    ListRecurringCardsQuerySchema,
+    rawQuery ?? {},
+    'Invalid recurring schedule query',
+  );
+  const db = deps.db ?? getDb();
+  const tz = deps.householdTimezone ?? getConfig().householdTimezone;
+  const now = (deps.now ?? (() => new Date()))();
+
+  const snap = await db
+    .collection('cards')
+    .where('visibleToUserIds', 'array-contains', auth.ownerUserId)
+    .where('archived', '==', false)
+    .get();
+
+  const recurring: RecurringScheduleEntry[] = [];
+  const deferredCards: Card[] = [];
+
+  for (const doc of snap.docs) {
+    const card = parseStoredCard(doc.id, doc.data());
+    if (card.recurrence !== null) {
+      const nextOccurrences = projectOccurrencesWithinHorizon(
+        card.recurrence,
+        now,
+        card.due,
+        query.horizonDays,
+        tz,
+        card.dueHasTime,
+      );
+      recurring.push({
+        card,
+        nextOccurrences,
+        cadence: describeRecurrenceCadence(card.recurrence),
+        effectiveLeadDays: effectiveLeadDaysForRecurrence(
+          card.recurrence,
+          card.due ?? nextOccurrences[0] ?? null,
+          card.lastCompletedAt,
+          now,
+          tz,
+          card.dueHasTime,
+        ),
+      });
+      continue;
+    }
+
+    if (isCardDeferred(card, now)) {
+      deferredCards.push(card);
+    }
+  }
+
+  recurring.sort((a, b) => {
+    const diff = earliestScheduleInstantMs(a) - earliestScheduleInstantMs(b);
+    return diff !== 0 ? diff : a.card.id.localeCompare(b.card.id);
+  });
+  deferredCards.sort((a, b) => {
+    const diff = Date.parse(a.deferUntil ?? '') - Date.parse(b.deferUntil ?? '');
+    if (diff !== 0) {
+      return diff;
+    }
+    return a.id.localeCompare(b.id);
+  });
+
+  return {
+    generatedAt: now.toISOString(),
+    timezone: tz,
+    horizonDays: query.horizonDays,
+    recurring,
+    deferredCards,
+  };
+}
+
+export async function rescoreCardHandler(
+  auth: AuthContext,
+  rawCardId: unknown,
+  rawInput: unknown,
+  deps: HandlerDeps = {},
+): Promise<{ card: Card }> {
+  const cardId = parseWithSchema(EntityIdSchema, rawCardId, 'Invalid card ID');
+  const input = parseWithSchema(RescoreCardInputSchema, rawInput ?? {}, 'Invalid rescore payload');
+  const db = deps.db ?? getDb();
+  const getNow = deps.now ?? (() => new Date());
+  const cardRef = db.collection('cards').doc(cardId);
+
+  const updated = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(cardRef);
+    const existing = assertCardVisible(
+      snap.exists ? parseStoredCard(snap.id, snap.data() ?? {}) : null,
+      auth.ownerUserId,
+    );
+
+    if (input.ifUpdatedAt !== undefined && input.ifUpdatedAt !== existing.updatedAt) {
+      throw new AppError(409, 'CONFLICT', 'Card was modified concurrently', {
+        expectedUpdatedAt: input.ifUpdatedAt,
+        actualUpdatedAt: existing.updatedAt,
+      });
+    }
+
+    const nowIso = nextMonotonicIso(existing.updatedAt, getNow());
+    const nextCard = CardSchema.parse({
+      ...existing,
+      priorityScore: null,
+      priorityReason: null,
+      lastTouchedAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    const diff = computeFieldDiff(existing, nextCard, ['priorityScore', 'priorityReason']);
+    const activity = buildActivityEntry({
+      cardId: nextCard.id,
+      visibleToUserIds: nextCard.visibleToUserIds,
+      auth,
+      action: 'card.rescore_requested',
+      diff,
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
+
+    tx.set(cardRef, nextCard);
+    writeActivityInTransaction(tx, db, activity);
+    writeEventInTransaction(tx, db, {
+      type: 'card.rescore_requested',
+      card: nextCard,
+      auth,
+      payload: { diff },
+      note: input.note ?? null,
+      createdAt: nowIso,
+    });
+
+    return nextCard;
+  });
+
+  return { card: updated };
 }

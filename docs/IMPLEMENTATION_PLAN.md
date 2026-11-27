@@ -86,7 +86,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 
 ### Milestone 6: Snooze (`deferUntil`), Recurring Auto-Defer, Schedule View & Priority Nudges (v1.1)
 - [x] **M6.1** — Shared schemas & helpers: `pinned`, `deferUntil`, `lastCompletedAt`, recurrence `autoDefer`/`leadDays`, `projectNextOccurrences` & v1.1 event types
-- [ ] **M6.2** — API, MCP & cron: pinned-first `To-Do` sort, deferred filtering, recurring auto-defer, `POST /api/cards/:id/rescore`, `GET /api/cards/recurring`, `dueScanner` wake-up & Firestore index
+- [x] **M6.2** — API, MCP & cron: pinned-first `To-Do` sort, deferred filtering, recurring auto-defer, `POST /api/cards/:id/rescore`, `GET /api/cards/recurring`, `dueScanner` wake-up & Firestore index
 - [ ] **M6.3 `[HUMAN]`** — Cloud deploy-and-verify gate (deploy Firestore `deferUntil` index + updated `scanDueCards` cron & live smoke verification)
 - [ ] **M6.4** — PWA 5th `Schedule` tab (`Upcoming` timeline + `All Recurring` master list + snoozed cards), recurrence `leadDays` editor, Pin & Request AI Rescore UI
 
@@ -993,7 +993,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M6.2: API, MCP & cron — pinned-first `To-Do` sort, deferred filtering, recurring auto-defer, rescore, recurring query, `dueScanner` wake-up & Firestore index
+### - [x] Step M6.2: API, MCP & cron — pinned-first `To-Do` sort, deferred filtering, recurring auto-defer, rescore, recurring query, `dueScanner` wake-up & Firestore index
 
 **Goal:** Implement backend support for snoozing (`deferUntil`), recurring auto-defer and schedule projections, `pinned` & `rescore` priority nudges, and scheduled wake-up events.
 

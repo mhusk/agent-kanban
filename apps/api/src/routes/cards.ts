@@ -19,6 +19,8 @@ import {
   listCardActivityHandler,
   listCardsHandler,
   listGlobalActivityHandler,
+  listRecurringCardsHandler,
+  rescoreCardHandler,
   searchCardsHandler,
   updateCardHandler,
 } from '../handlers/cards.js';
@@ -116,6 +118,20 @@ export function createCardsRouter(configOverride?: AppConfig): Router {
         const auth = requireReqAuth(req);
         const householdTimezone = (configOverride ?? getConfig()).householdTimezone;
         const result = await smartQueryCardsHandler(auth, req.query, { householdTimezone });
+        res.status(200).json(result);
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
+  // Registered before /cards/:id so "recurring" is not captured as a card ID.
+  router.get('/cards/recurring', requireAuth, (req: Request, res: Response, next: NextFunction) => {
+    void (async () => {
+      try {
+        const auth = requireReqAuth(req);
+        const householdTimezone = (configOverride ?? getConfig()).householdTimezone;
+        const result = await listRecurringCardsHandler(auth, req.query, { householdTimezone });
         res.status(200).json(result);
       } catch (error) {
         next(error);
@@ -243,6 +259,22 @@ export function createCardsRouter(configOverride?: AppConfig): Router {
           const result = await completeCardHandler(auth, req.params.id, req.body, {
             householdTimezone,
           });
+          res.status(200).json(result);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
+
+  router.post(
+    '/cards/:id/rescore',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const result = await rescoreCardHandler(auth, req.params.id, req.body);
           res.status(200).json(result);
         } catch (error) {
           next(error);

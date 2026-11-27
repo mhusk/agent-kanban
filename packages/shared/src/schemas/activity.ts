@@ -9,6 +9,7 @@ export const ActivityActionSchema = z.enum([
   'card.updated',
   'card.status_changed',
   'card.completed',
+  'card.rescore_requested',
   'card.archived',
   'card.unarchived',
   'card.auto_archived',

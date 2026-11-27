@@ -1,5 +1,12 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { CardSchema, isDueSoon, isOverdue, type Card, type EventType } from '@agent-kanban/shared';
+import {
+  CardSchema,
+  isCardDeferred,
+  isDueSoon,
+  isOverdue,
+  type Card,
+  type EventType,
+} from '@agent-kanban/shared';
 import { getConfig } from '../config.js';
 import { AppError } from '../lib/errors.js';
 import { getDb } from '../lib/firebase.js';
@@ -18,6 +25,7 @@ export interface DueScannerResult {
   scanned: number;
   dueSoonEmitted: number;
   overdueEmitted: number;
+  unsnoozedEmitted: number;
 }
 
 function parseStoredCard(id: string, rawData: Record<string, unknown>): Card {
@@ -41,7 +49,9 @@ async function emitDueEventOnce(params: {
   expectedDue: string;
   eventType: Extract<EventType, 'card.due_soon' | 'card.overdue'>;
   flagField: 'dueSoonNotifiedAt' | 'overdueNotifiedAt';
+  now: Date;
   nowIso: string;
+  skipWhileDeferred: boolean;
 }): Promise<boolean> {
   const cardRef = params.db.collection('cards').doc(params.cardId);
 
@@ -58,6 +68,10 @@ async function emitDueEventOnce(params: {
       latest.due === null ||
       latest.due !== params.expectedDue
     ) {
+      return false;
+    }
+
+    if (params.skipWhileDeferred && isCardDeferred(latest, params.now)) {
       return false;
     }
 
@@ -88,8 +102,60 @@ async function emitDueEventOnce(params: {
 }
 
 /**
- * Scans open non-archived cards with a `due` value and emits `card.due_soon` (within 2 days)
- * and `card.overdue` (past due) events at most once per due cycle.
+ * Clears an elapsed snooze once per cycle and emits `card.unsnoozed`.
+ * A concurrent scanner that already cleared `deferUntil` writes nothing.
+ */
+async function wakeDeferredCard(params: {
+  db: Firestore;
+  cardId: string;
+  now: Date;
+  nowIso: string;
+}): Promise<boolean> {
+  const cardRef = params.db.collection('cards').doc(params.cardId);
+
+  return params.db.runTransaction(async (tx) => {
+    const snap = await tx.get(cardRef);
+    if (!snap.exists) {
+      return false;
+    }
+
+    const latest = parseStoredCard(snap.id, snap.data() ?? {});
+    if (latest.archived || latest.deferUntil === null || isCardDeferred(latest, params.now)) {
+      return false;
+    }
+
+    const previousDeferUntil = latest.deferUntil;
+    const updatedCard: Card = {
+      ...latest,
+      deferUntil: null,
+      enteredStatusAt: params.nowIso,
+      updatedAt: params.nowIso,
+    };
+
+    tx.update(cardRef, {
+      deferUntil: null,
+      enteredStatusAt: params.nowIso,
+      updatedAt: params.nowIso,
+    });
+    writeEventInTransaction(tx, params.db, {
+      type: 'card.unsnoozed',
+      card: updatedCard,
+      auth: SYSTEM_EVENT_AUTH,
+      payload: {
+        previousDeferUntil,
+      },
+      createdAt: params.nowIso,
+    });
+
+    return true;
+  });
+}
+
+/**
+ * Wakes elapsed snoozes, then scans open non-archived cards with a `due` value.
+ * Emits `card.due_soon` (within 2 days) and `card.overdue` (past due) at most once
+ * per due cycle. Deferred cards skip `card.due_soon` until they wake, and still
+ * emit `card.overdue` when actually overdue.
  */
 export async function runDueScanner(
   now: Date = new Date(),
@@ -99,6 +165,26 @@ export async function runDueScanner(
   const db = deps.db ?? getDb();
   const timezone = tz ?? getConfig().householdTimezone;
   const nowIso = now.toISOString();
+
+  const wakeSnap = await db
+    .collection('cards')
+    .where('archived', '==', false)
+    .where('deferUntil', '>', '')
+    .where('deferUntil', '<=', nowIso)
+    .get();
+
+  let unsnoozedEmitted = 0;
+  for (const doc of wakeSnap.docs) {
+    const woke = await wakeDeferredCard({
+      db,
+      cardId: doc.id,
+      now,
+      nowIso,
+    });
+    if (woke) {
+      unsnoozedEmitted += 1;
+    }
+  }
 
   const snap = await db
     .collection('cards')
@@ -126,12 +212,18 @@ export async function runDueScanner(
           expectedDue: card.due,
           eventType: 'card.overdue',
           flagField: 'overdueNotifiedAt',
+          now,
           nowIso,
+          skipWhileDeferred: false,
         });
         if (emitted) {
           overdueEmitted += 1;
         }
       }
+      continue;
+    }
+
+    if (isCardDeferred(card, now)) {
       continue;
     }
 
@@ -142,7 +234,9 @@ export async function runDueScanner(
         expectedDue: card.due,
         eventType: 'card.due_soon',
         flagField: 'dueSoonNotifiedAt',
+        now,
         nowIso,
+        skipWhileDeferred: true,
       });
       if (emitted) {
         dueSoonEmitted += 1;
@@ -150,5 +244,5 @@ export async function runDueScanner(
     }
   }
 
-  return { scanned, dueSoonEmitted, overdueEmitted };
+  return { scanned, dueSoonEmitted, overdueEmitted, unsnoozedEmitted };
 }
