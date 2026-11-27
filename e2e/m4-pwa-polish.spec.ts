@@ -144,6 +144,13 @@ test.describe('M4.3 PWA Installability, Manifest, Icons, Offline Banner & Polish
 
     const signOutBtn = page.getByRole('button', { name: 'Sign out' });
     const headerBrand = page.locator('header p').first();
+    const headerBackdropFilter = await page.locator('header').evaluate((el) => {
+      const win = globalThis as unknown as {
+        getComputedStyle: (node: unknown) => { backdropFilter: string };
+      };
+      return win.getComputedStyle(el).backdropFilter;
+    });
+    expect(headerBackdropFilter).toBe('none');
     const signOutBox = await signOutBtn.boundingBox();
     const headerBrandBox = await headerBrand.boundingBox();
     expect(signOutBox?.y ?? 0).toBeGreaterThanOrEqual(59);

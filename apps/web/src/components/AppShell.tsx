@@ -63,7 +63,7 @@ export function AppShell({ user }: AppShellProps) {
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)] backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <img src="/icon.svg" alt="" width={28} height={28} className="h-7 w-7 rounded-lg" />
