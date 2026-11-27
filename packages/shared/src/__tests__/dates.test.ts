@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDueSoon, isOverdue, resolveEffectiveDueInstant } from '../index.js';
+import { isCardDeferred, isDueSoon, isOverdue, resolveEffectiveDueInstant } from '../index.js';
 
 describe('DST-aware due date helpers', () => {
   const NY = 'America/New_York';
@@ -78,6 +78,41 @@ describe('DST-aware due date helpers', () => {
     expect(isDueSoon({ due: null }, '2026-05-01T00:00:00.000Z', NY)).toBe(false);
     expect(isOverdue({ ...dateCard, status: 'done' }, '2026-05-01T00:00:00.000Z', NY)).toBe(false);
     expect(isDueSoon({ ...dateCard, archived: true }, '2026-03-08T12:00:00.000Z', NY)).toBe(false);
+  });
+
+  it('treats deferUntil as active only while it is strictly after now, including the spring-forward instant', () => {
+    const springForwardMidnight = new Date('2026-03-08T05:00:00.000Z');
+
+    expect(isCardDeferred({ deferUntil: null }, springForwardMidnight)).toBe(false);
+    expect(
+      isCardDeferred(
+        { deferUntil: '2026-03-08T05:00:00.000Z' },
+        new Date('2026-03-08T04:59:59.999Z'),
+      ),
+    ).toBe(true);
+    expect(isCardDeferred({ deferUntil: '2026-03-08T05:00:00.000Z' }, springForwardMidnight)).toBe(
+      false,
+    );
+    expect(
+      isCardDeferred(
+        { deferUntil: '2026-03-08T05:00:00.000Z' },
+        new Date('2026-03-08T05:00:00.001Z'),
+      ),
+    ).toBe(false);
+    expect(
+      isCardDeferred(
+        { deferUntil: '2026-03-08T00:00:00.000-05:00' },
+        new Date('2026-03-08T04:59:59.999Z'),
+      ),
+    ).toBe(true);
+    expect(
+      isCardDeferred(
+        { deferUntil: '2026-11-02T05:00:00.000Z' },
+        new Date('2026-11-01T04:00:00.000Z'),
+      ),
+    ).toBe(true);
+
+    expect(() => isCardDeferred({ deferUntil: 'not-a-date' }, springForwardMidnight)).toThrow();
   });
 
   it('throws on invalid timezone or invalid ISO date strings', () => {

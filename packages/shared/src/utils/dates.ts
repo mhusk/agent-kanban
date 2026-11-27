@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import type { CardStatus } from '../schemas/card.js';
+import type { Card, CardStatus } from '../schemas/card.js';
 import { isValidIanaTimezone } from '../schemas/common.js';
 
 export interface DueCardLike {
@@ -119,4 +119,21 @@ export function isDueSoon(
       });
 
   return effectiveDueMs <= horizon.toMillis();
+}
+
+/**
+ * A card is deferred while `deferUntil` is set and strictly after `now`.
+ * An elapsed or exact wake-up instant is not deferred.
+ */
+export function isCardDeferred(card: Pick<Card, 'deferUntil'>, now: Date): boolean {
+  if (card.deferUntil === null) {
+    return false;
+  }
+
+  const deferredUntil = DateTime.fromISO(card.deferUntil, { setZone: true });
+  if (!deferredUntil.isValid) {
+    throw new Error(`Invalid deferUntil ISO date/time: ${card.deferUntil}`);
+  }
+
+  return deferredUntil.toMillis() > now.getTime();
 }

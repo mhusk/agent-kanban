@@ -82,6 +82,9 @@ export function buildSeedCards(now: Date = new Date()): Card[] {
       trelloShortLink: null,
       dueSoonNotifiedAt: null,
       overdueNotifiedAt: null,
+      pinned: false,
+      deferUntil: null,
+      lastCompletedAt: null,
     },
     {
       id: 'card-seed-2',
@@ -125,6 +128,9 @@ export function buildSeedCards(now: Date = new Date()): Card[] {
       trelloShortLink: null,
       dueSoonNotifiedAt: null,
       overdueNotifiedAt: null,
+      pinned: false,
+      deferUntil: null,
+      lastCompletedAt: null,
     },
     {
       id: 'card-seed-3',
@@ -155,6 +161,9 @@ export function buildSeedCards(now: Date = new Date()): Card[] {
       trelloShortLink: null,
       dueSoonNotifiedAt: null,
       overdueNotifiedAt: null,
+      pinned: false,
+      deferUntil: null,
+      lastCompletedAt: null,
     },
     {
       id: 'card-seed-4',
@@ -192,6 +201,9 @@ export function buildSeedCards(now: Date = new Date()): Card[] {
       trelloShortLink: null,
       dueSoonNotifiedAt: null,
       overdueNotifiedAt: null,
+      pinned: false,
+      deferUntil: null,
+      lastCompletedAt: null,
     },
     {
       id: 'card-seed-5',
@@ -222,6 +234,9 @@ export function buildSeedCards(now: Date = new Date()): Card[] {
       trelloShortLink: null,
       dueSoonNotifiedAt: null,
       overdueNotifiedAt: null,
+      pinned: false,
+      deferUntil: null,
+      lastCompletedAt: null,
     },
     {
       id: 'card-seed-6',
@@ -252,6 +267,9 @@ export function buildSeedCards(now: Date = new Date()): Card[] {
       trelloShortLink: null,
       dueSoonNotifiedAt: null,
       overdueNotifiedAt: null,
+      pinned: false,
+      deferUntil: null,
+      lastCompletedAt: null,
     },
   ];
 

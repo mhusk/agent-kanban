@@ -26,6 +26,7 @@ import {
   MAX_ATTACHMENT_SIZE_BYTES,
   RecurrenceSchema,
   RenameTagInputSchema,
+  RescoreCardInputSchema,
   SubscriptionFiltersSchema,
   normalizeTag,
   normalizeTags,
@@ -377,6 +378,15 @@ describe('Card, Checklist, Link, Recurrence & Bulk schemas', () => {
 
     const legacy = CardSchema.parse({ ...validCard, tags: ['Groceries', 'Home'] });
     expect(legacy.tags).toEqual(['Groceries', 'Home']);
+    expect(legacy.pinned).toBe(false);
+    expect(legacy.deferUntil).toBeNull();
+    expect(legacy.lastCompletedAt).toBeNull();
+    expect(legacy.recurrence).toEqual({
+      type: 'interval_after_completion',
+      every: 90,
+      unit: 'days',
+      timezone: 'America/New_York',
+    });
 
     expect(
       SubscriptionFiltersSchema.parse({
@@ -384,6 +394,91 @@ describe('Card, Checklist, Link, Recurrence & Bulk schemas', () => {
         tags: ['Groceries', ' groceries ', 'Urgent'],
       }).tags,
     ).toEqual(['groceries', 'urgent']);
+  });
+
+  it('parses legacy v1 cards and accepts v1.1 snooze, pin, and rescore inputs', () => {
+    const legacy = CardSchema.parse(validCard);
+    expect(legacy.pinned).toBe(false);
+    expect(legacy.deferUntil).toBeNull();
+    expect(legacy.lastCompletedAt).toBeNull();
+    expect('autoDefer' in (legacy.recurrence ?? {})).toBe(false);
+    expect('leadDays' in (legacy.recurrence ?? {})).toBe(false);
+
+    const withSnooze = CardSchema.parse({
+      ...validCard,
+      pinned: true,
+      deferUntil: '2026-05-06T04:00:00.000Z',
+      lastCompletedAt: '2026-04-01T15:00:00.000Z',
+      recurrence: {
+        type: 'cron',
+        expression: '0 7 * * 6',
+        timezone: 'America/New_York',
+        autoDefer: false,
+        leadDays: 2,
+      },
+    });
+    expect(withSnooze.pinned).toBe(true);
+    expect(withSnooze.deferUntil).toBe('2026-05-06T04:00:00.000Z');
+    expect(withSnooze.lastCompletedAt).toBe('2026-04-01T15:00:00.000Z');
+    expect(withSnooze.recurrence).toMatchObject({ autoDefer: false, leadDays: 2 });
+
+    const created = CreateCardInputSchema.parse({
+      title: 'Snooze until Friday',
+      pinned: true,
+      deferUntil: '2026-05-08T04:00:00.000Z',
+    });
+    expect(created.pinned).toBe(true);
+    expect(created.deferUntil).toBe('2026-05-08T04:00:00.000Z');
+
+    const createdDefaults = CreateCardInputSchema.parse({ title: 'Plain task' });
+    expect(createdDefaults.pinned).toBe(false);
+    expect(createdDefaults.deferUntil).toBeNull();
+
+    const updated = UpdateCardInputSchema.parse({
+      pinned: false,
+      deferUntil: null,
+    });
+    expect(updated).toMatchObject({ pinned: false, deferUntil: null });
+    expect(UpdateCardInputSchema.parse({ title: 'Rename only' })).not.toHaveProperty('pinned');
+    expect(UpdateCardInputSchema.parse({ title: 'Rename only' })).not.toHaveProperty('deferUntil');
+
+    expect(
+      RecurrenceSchema.parse({
+        type: 'interval_after_completion',
+        every: 7,
+        unit: 'days',
+        leadDays: 0,
+        autoDefer: true,
+      }),
+    ).toMatchObject({ leadDays: 0, autoDefer: true });
+    expect(
+      RecurrenceSchema.safeParse({
+        type: 'interval_after_completion',
+        every: 7,
+        unit: 'days',
+        leadDays: -1,
+      }).success,
+    ).toBe(false);
+    expect(
+      RecurrenceSchema.safeParse({
+        type: 'cron',
+        expression: '0 7 * * 6',
+        leadDays: 366,
+      }).success,
+    ).toBe(false);
+    expect(
+      RecurrenceSchema.safeParse({
+        type: 'cron',
+        expression: '0 7 * * 6',
+        leadDays: 1.5,
+      }).success,
+    ).toBe(false);
+
+    expect(RescoreCardInputSchema.parse({})).toEqual({});
+    expect(RescoreCardInputSchema.parse({ ifUpdatedAt: NOW, note: 'Please rescore' })).toEqual({
+      ifUpdatedAt: NOW,
+      note: 'Please rescore',
+    });
   });
 });
 
@@ -633,6 +728,22 @@ describe('Agent connection, Subscription & Event schemas', () => {
     });
     expect(event.deliveries).toEqual({});
     expect(event.actor.agentName).toBeNull();
+    expect(event.cardId).toBe('card_01');
+
+    const bulkEvent = EventSchema.parse({
+      id: 'evt_bulk',
+      type: 'cards.bulk_updated',
+      cardId: null,
+      visibleToUserIds: ['user_alex', 'user_sam'],
+      actor: {
+        actorType: 'human',
+        actorId: 'user_alex',
+      },
+      payload: { cardIds: ['card_01', 'card_02'], count: 2 },
+      createdAt: NOW,
+    });
+    expect(bulkEvent.cardId).toBeNull();
+    expect(bulkEvent.type).toBe('cards.bulk_updated');
 
     for (const evtType of [
       'card.created',
@@ -642,9 +753,22 @@ describe('Agent connection, Subscription & Event schemas', () => {
       'card.completed',
       'card.due_soon',
       'card.overdue',
+      'card.unsnoozed',
+      'card.rescore_requested',
+      'cards.bulk_updated',
     ]) {
       expect(EventTypeSchema.parse(evtType)).toBe(evtType);
     }
+    expect(EventTypeSchema.safeParse('card.snoozed').success).toBe(false);
+    expect(
+      EventSchema.safeParse({
+        id: 'evt_missing',
+        type: 'card.created',
+        visibleToUserIds: ['user_alex'],
+        actor: { actorType: 'human', actorId: 'user_alex' },
+        createdAt: NOW,
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects non-HTTPS webhook URLs in strict schemas and invalid subscription fields', () => {
