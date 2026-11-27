@@ -131,6 +131,68 @@ test.describe('M4.3 PWA Installability, Manifest, Icons, Offline Banner & Polish
       page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'To-Do' }),
     ).toHaveAttribute('aria-current', 'page');
 
+    // Simulated iOS safe-area insets keep header content below status bar and FAB clear of bottom nav
+    await page.evaluate(() => {
+      const doc = (
+        globalThis as unknown as {
+          document: { documentElement: { style: { setProperty: (k: string, v: string) => void } } };
+        }
+      ).document;
+      doc.documentElement.style.setProperty('--safe-area-top', '59px');
+      doc.documentElement.style.setProperty('--safe-area-bottom', '34px');
+    });
+
+    const signOutBtn = page.getByRole('button', { name: 'Sign out' });
+    const headerBrand = page.locator('header p').first();
+    const signOutBox = await signOutBtn.boundingBox();
+    const headerBrandBox = await headerBrand.boundingBox();
+    expect(signOutBox?.y ?? 0).toBeGreaterThanOrEqual(59);
+    expect(headerBrandBox?.y ?? 0).toBeGreaterThanOrEqual(59);
+
+    const safeFabBox = await fab.boundingBox();
+    const safeNavBox = await page.getByRole('navigation', { name: 'Primary' }).boundingBox();
+    expect(safeFabBox).not.toBeNull();
+    expect(safeNavBox).not.toBeNull();
+    if (safeFabBox && safeNavBox) {
+      expect(safeNavBox.y - (safeFabBox.y + safeFabBox.height)).toBeGreaterThanOrEqual(16);
+    }
+
+    await page.evaluate(() => {
+      const doc = (
+        globalThis as unknown as {
+          document: { documentElement: { style: { removeProperty: (k: string) => void } } };
+        }
+      ).document;
+      doc.documentElement.style.removeProperty('--safe-area-top');
+      doc.documentElement.style.removeProperty('--safe-area-bottom');
+    });
+
+    // FilterBar scrolls with page on mobile (static) and is sticky below header on desktop
+    const getFilterBarStyles = async () =>
+      page.getByRole('searchbox', { name: 'Search cards' }).evaluate((el) => {
+        const win = globalThis as unknown as {
+          getComputedStyle: (node: unknown) => { position: string; top: string };
+        };
+        let curr: { parentElement: unknown; className?: string } | null = el as unknown as {
+          parentElement: unknown;
+          className?: string;
+        };
+        while (curr && typeof curr.className === 'string' && !curr.className.includes('border-b')) {
+          curr = curr.parentElement as typeof curr;
+        }
+        const style = win.getComputedStyle(curr);
+        return { position: style.position, top: style.top };
+      });
+
+    const mobileFilterStyles = await getFilterBarStyles();
+    expect(mobileFilterStyles.position).toBe('static');
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    const desktopFilterStyles = await getFilterBarStyles();
+    expect(desktopFilterStyles.position).toBe('sticky');
+    expect(desktopFilterStyles.top).toBe('69px');
+    await page.setViewportSize({ width: 390, height: 844 });
+
     // Offline banner appears when offline and hides when back online
     await expect(page.getByTestId('offline-banner')).toHaveCount(0);
     await context.setOffline(true);

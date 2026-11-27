@@ -1,5 +1,17 @@
 @import 'tailwindcss';
 
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+}
+
+html {
+  scroll-padding-top: calc(4.5rem + var(--safe-area-top));
+  scroll-padding-bottom: calc(4rem + var(--safe-area-bottom));
+}
+
 @layer base {
   :where(a:any-link, button, input, select, textarea):focus-visible {
     outline: 2px solid #0284c7;

@@ -26,7 +26,7 @@ export function FilterBar({
   currentUserId,
 }: FilterBarProps) {
   return (
-    <div className="sticky top-[69px] z-10 -mx-4 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur">
+    <div className="-mx-4 border-b border-slate-200 bg-slate-50/95 px-4 py-3 sm:sticky sm:top-[calc(69px+var(--safe-area-top))] sm:z-10 sm:backdrop-blur">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
         <div className="relative min-w-0 flex-1">
           <input

@@ -10,7 +10,7 @@ export function SignInView() {
   }, []);
 
   return (
-    <div className="min-h-dvh bg-slate-50 px-4 py-12 text-slate-900">
+    <div className="min-h-dvh bg-slate-50 px-4 pt-[calc(3rem+var(--safe-area-top))] pb-[calc(3rem+var(--safe-area-bottom))] text-slate-900">
       <main className="mx-auto w-full max-w-md">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex items-center gap-3">

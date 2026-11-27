@@ -58,12 +58,12 @@ export function AppShell({ user }: AppShellProps) {
     <div className="flex min-h-dvh flex-col bg-slate-50 text-slate-900">
       <a
         href="#main-content"
-        className="visually-hidden fixed top-2 left-2 z-50 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white shadow"
+        className="visually-hidden fixed top-[calc(0.5rem+var(--safe-area-top))] left-[calc(0.5rem+var(--safe-area-left))] z-50 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white shadow"
       >
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)] backdrop-blur">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <img src="/icon.svg" alt="" width={28} height={28} className="h-7 w-7 rounded-lg" />
@@ -96,7 +96,7 @@ export function AppShell({ user }: AppShellProps) {
 
       <OfflineBanner />
 
-      <main className="mx-auto w-full max-w-xl flex-1 px-4 pt-6 pb-24">
+      <main className="mx-auto w-full max-w-xl flex-1 px-4 pt-6 pb-[calc(6rem+var(--safe-area-bottom))]">
         <Routes>
           <Route path="/" element={<TodoPage user={user} />} />
           <Route path="/active" element={<ActivePage user={user} />} />
@@ -116,7 +116,7 @@ export function AppShell({ user }: AppShellProps) {
           type="button"
           aria-label="New card"
           onClick={() => setQuickAddOpen(true)}
-          className="fixed right-4 bottom-20 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-sky-700 text-white shadow-lg transition hover:bg-sky-800 active:scale-95 sm:right-8"
+          className="fixed right-[max(1rem,var(--safe-area-right))] bottom-[calc(5rem+var(--safe-area-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-sky-700 text-white shadow-lg transition hover:bg-sky-800 active:scale-95 sm:right-[max(2rem,var(--safe-area-right))]"
         >
           <Plus className="h-6 w-6 shrink-0" strokeWidth={2.5} aria-hidden="true" />
         </button>
@@ -131,7 +131,7 @@ export function AppShell({ user }: AppShellProps) {
 
       <nav
         aria-label="Primary"
-        className="fixed right-0 bottom-0 left-0 z-20 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+        className="fixed right-0 bottom-0 left-0 z-20 border-t border-slate-200 bg-white/95 pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] backdrop-blur"
       >
         <ul className="mx-auto grid w-full max-w-xl grid-cols-4">
           {TABS.map((tab) => {
