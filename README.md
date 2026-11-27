@@ -1,6 +1,6 @@
 # agent-kanban
 
-An **agent-first, mobile-first Kanban board** built to be operated jointly by people and AI agents. Human household members capture and prioritize tasks from an installable PWA, while AI assistants interact natively over a **Streamable HTTP MCP server**, **REST API**, **filtered HMAC/Bearer webhooks**, and an **incremental event polling API**.
+An **agent-first, mobile-first Kanban board** built to be operated jointly by people and AI agents. Human household members capture and prioritize tasks from an installable PWA, while AI assistants interact natively over a **Streamable HTTP MCP server**, **REST API**, **filtered Standard Webhooks/Bearer/HMAC webhooks**, and an **incremental event polling API**.
 
 Built cleanly for public self-hosting on Firebase (Cloud Functions v2, Firestore, Cloud Storage, Hosting) and WorkOS AuthKit.
 
@@ -103,12 +103,13 @@ Detailed step-by-step cloud provisioning and WorkOS AuthKit gotchas live in [`do
 
 ## API & MCP Quick Reference
 
-### 1. Hosted MCP Clients (Claude, ChatGPT, Cursor)
+### 1. Hosted MCP Clients (Claude, ChatGPT, Cursor, Grok / GrokBot)
 
 - **Endpoint:** `https://<your-domain>/mcp` (Stateless Streamable HTTP)
 - **Discovery Metadata:** `https://<your-domain>/.well-known/oauth-protected-resource` (RFC 9728)
 - **Authentication:** WorkOS OAuth 2.1 Bearer JWT or personal API key (`Authorization: Bearer <token>`), plus optional `X-Agent-Name` header for activity attribution.
-- Includes 20 shared-handler tools: `list_cards`, `get_card`, `get_card_by_trello`, `search_cards`, `query_smart`, `workspace_snapshot`, `create_card`, `update_card`, `bulk_update_cards`, `bulk_update_priorities`, `change_status`, `complete_card`, `archive_card`, `list_activity`, `add_comment`, `manage_checklist`, `toggle_checklist_item`, `manage_link`, `list_events`, and `manage_subscriptions`.
+  - **Static API key setup (e.g., Grok `Connect Apps → Add MCP Server`):** Point to `https://<your-domain>/mcp` and set custom HTTP headers `Authorization: Bearer <API_KEY>` (and optional `X-Agent-Name: Chief of Staff`) so clients don't attempt OAuth Dynamic Client Registration against WorkOS.
+- Includes 20 shared-handler tools: `list_cards`, `get_card`, `get_card_by_trello`, `search_cards`, `smart_query_cards`, `get_workspace_snapshot`, `create_card`, `update_card`, `bulk_update_cards`, `bulk_update_priorities`, `change_card_status`, `complete_card`, `archive_card`, `get_activity`, `add_comment`, `manage_checklist`, `toggle_checklist_item`, `manage_link`, `list_events`, and `manage_subscriptions`.
 
 ### 2. Custom Agents via REST API Key
 
@@ -127,13 +128,17 @@ Detailed step-by-step cloud provisioning and WorkOS AuthKit gotchas live in [`do
 
 Create filtered subscriptions via `POST /api/subscriptions` (or **Settings → Webhook Subscriptions** / MCP `manage_subscriptions`) filtering by `eventTypes`, `tags`, `statuses`, `assignedUserIds`, and `mentionedUserIds`.
 
+- **`standard_webhooks` deliveries** (compatible with Grok Automations / Svix `whsec_...` secrets) strip the optional `whsec_` prefix, Base64-decode the key, and include:
+  - `webhook-id`: `msg_<eventId>`
+  - `webhook-timestamp`: Unix seconds
+  - `webhook-signature`: `v1,<base64(hmac_sha256(key, `${webhook-id}.${t}.${rawBody}`))>`
 - **`hmac` deliveries** include:
   - `X-Agent-Kanban-Event-Id`
   - `X-Agent-Kanban-Event-Type`
   - `X-Agent-Kanban-Timestamp` (Unix seconds)
   - `X-Agent-Kanban-Signature`: `t=<unixSeconds>,v1=<hex(hmac_sha256(secret, `${t}.${rawBody}`))>`
-- **`bearer` deliveries** include `Authorization: Bearer <secret>`.
-- Failed deliveries (`non-2xx` or 5s timeout) automatically retry at `1m`, `5m`, `15m`, and `60m` (up to 5 attempts) preserving the exact same `eventId`.
+- **`bearer` deliveries** include `Authorization: Bearer <secret>` (works with GrokBot routine triggers using bearer tokens).
+- Each subscription mirrors its latest delivery outcome (`lastDelivery`) in **Settings → Webhook Subscriptions** (with a manual **Refresh** button), and failed deliveries (`non-2xx` or 5s timeout) automatically retry at `1m`, `5m`, `15m`, and `60m` (up to 5 attempts) preserving the exact same `eventId`.
 
 ---
 

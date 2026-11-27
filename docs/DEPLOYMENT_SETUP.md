@@ -18,7 +18,7 @@ This guide captures the manual provisioning steps and real-world gotchas for dep
 ## 2. Firebase & GCP Provisioning
 
 1. Create a private Firebase project and upgrade to the **Blaze** plan.
-2. Create a GCP Billing **Budget Alert** at **$5/month** scoped to the project.
+2. Create a GCP Billing **Budget Alert** at **$5/month** scoped to the project. *(In Firebase Console → Usage / Functions, you can also set a native **$5 service-level spend cap** on Cloud Run Functions so the service pauses automatically at 100%.)*
 3. In Firebase Console, initialize:
    - **Firestore Database:** Standard (Native mode) in `us-central1` (Start in production mode; deploy overwrites rules with deny-all `firebase/firestore.rules`).
    - **Storage:** Default bucket in `us-central1` (Start in production mode).
@@ -71,7 +71,7 @@ This guide captures the manual provisioning steps and real-world gotchas for dep
    gcloud storage buckets update gs://<FIREBASE_PROJECT_ID>.firebasestorage.app --cors-file=/tmp/cors.json
    rm /tmp/cors.json
    ```
-   *(Check your Storage bucket URI in Firebase Console → Storage — older projects use `<FIREBASE_PROJECT_ID>.appspot.com` while newer projects use `<FIREBASE_PROJECT_ID>.firebasestorage.app`.)*
+   *(Check your exact Storage bucket URI in Firebase Console → Storage — older projects use `<FIREBASE_PROJECT_ID>.appspot.com` while newer projects use `<FIREBASE_PROJECT_ID>.firebasestorage.app`. Do **not** apply CORS to internal Cloud Functions source/upload buckets such as `gs://gcf-v2-uploads-...`, or browser uploads from the PWA will still fail CORS.)*
 
 ### Cloud Functions v2 First-Deploy Gotchas
 
@@ -139,6 +139,9 @@ Moves session storage from `localStorage` to an HttpOnly cookie, so an XSS bug c
 4. **GitHub:** add Actions **secret** `VITE_WORKOS_API_HOSTNAME=auth.<yourdomain>` (it takes precedence over `VITE_WORKOS_PERSIST_SESSION`; you can then delete that variable).
 5. **Re-check JWT claims:** the custom domain may change the access token `iss` and JWKS URL. Decode a fresh token (e.g., jwt.io), then update the `WORKOS_ISSUER` and `WORKOS_JWKS_URL` secrets to match exactly, or `/api/me` returns `401 INVALID_TOKEN`.
 6. **Deploy and verify:** push to `main`, sign in, reload, and confirm you stay signed in and `/api/me` returns `200`. Existing users sign in once more after the switch.
+
+### Gotcha 5: MCP OAuth Discovery vs. Static API Keys
+`GET /.well-known/oauth-protected-resource` points `authorization_servers` to `WORKOS_ISSUER` (`https://api.workos.com/user_management/<DEFAULT_APP_CLIENT_ID>`), which does not serve `/.well-known/oauth-authorization-server` metadata or a Dynamic Client Registration endpoint (`registration_endpoint`). MCP clients that cannot register dynamically via WorkOS OAuth (or don't have pre-registered OAuth client credentials) should authenticate using a personal API key created in **Settings → Agent Connections** passed as custom HTTP headers (`Authorization: Bearer <API_KEY>` and optional `X-Agent-Name: Chief of Staff`).
 
 ---
 
