@@ -25,6 +25,10 @@ import {
   LinkAttachmentSchema,
   MAX_ATTACHMENT_SIZE_BYTES,
   RecurrenceSchema,
+  RenameTagInputSchema,
+  SubscriptionFiltersSchema,
+  normalizeTag,
+  normalizeTags,
   SubscriptionEmulatorSchema,
   SubscriptionSchema,
   UpdateAgentConnectionSchema,
@@ -319,7 +323,67 @@ describe('Card, Checklist, Link, Recurrence & Bulk schemas', () => {
       ],
     });
     expect(bulkCard.updates).toHaveLength(1);
+    expect(bulkCard.updates[0]?.addTags).toEqual(['urgent']);
     expect(BulkCardUpdateSchema.safeParse({ updates: [] }).success).toBe(false);
+  });
+
+  it('normalizes write-path tags and keeps mixed-case card documents readable', () => {
+    expect(normalizeTag('  Groceries ')).toBe('groceries');
+    expect(normalizeTags(['Groceries', ' groceries ', 'GROCERIES', 'Home', 'home'])).toEqual([
+      'groceries',
+      'home',
+    ]);
+
+    const created = CreateCardInputSchema.parse({
+      title: 'Restock pantry',
+      tags: ['Groceries', ' groceries ', 'GROCERIES', 'Home'],
+    });
+    expect(created.tags).toEqual(['groceries', 'home']);
+
+    const updated = UpdateCardInputSchema.parse({
+      tags: ['Errands', 'errands', '  Finance '],
+    });
+    expect(updated.tags).toEqual(['errands', 'finance']);
+
+    const bulk = BulkCardUpdateSchema.parse({
+      updates: [
+        {
+          cardId: 'card_01',
+          tags: ['Groceries', 'groceries'],
+          addTags: ['HOME', 'home'],
+          removeTags: [' Errands '],
+        },
+      ],
+    });
+    expect(bulk.updates[0]).toMatchObject({
+      tags: ['groceries'],
+      addTags: ['home'],
+      removeTags: ['errands'],
+    });
+
+    const rename = RenameTagInputSchema.parse({
+      fromTag: '  Groceries ',
+      toTag: 'Shopping',
+      note: 'Merge household tags',
+    });
+    expect(rename).toEqual({
+      fromTag: 'groceries',
+      toTag: 'shopping',
+      note: 'Merge household tags',
+    });
+    expect(RenameTagInputSchema.parse({ fromTag: 'Groceries', toTag: null }).toTag).toBeNull();
+    expect(RenameTagInputSchema.safeParse({ fromTag: '   ', toTag: 'home' }).success).toBe(false);
+    expect(RenameTagInputSchema.safeParse({ fromTag: 'home', toTag: '   ' }).success).toBe(false);
+
+    const legacy = CardSchema.parse({ ...validCard, tags: ['Groceries', 'Home'] });
+    expect(legacy.tags).toEqual(['Groceries', 'Home']);
+
+    expect(
+      SubscriptionFiltersSchema.parse({
+        eventTypes: ['card.created'],
+        tags: ['Groceries', ' groceries ', 'Urgent'],
+      }).tags,
+    ).toEqual(['groceries', 'urgent']);
   });
 });
 

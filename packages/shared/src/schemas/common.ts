@@ -6,6 +6,35 @@ export const IsoDateTimeSchema = z.string().datetime({ offset: true });
 
 export const TagSchema = z.string().trim().min(1).max(50);
 
+/**
+ * Canonical tag form: trimmed and lowercased.
+ * Matching and vocabulary aggregation use this so pre-v1.1 mixed-case tags still collide.
+ */
+export function normalizeTag(tag: string): string {
+  return tag.trim().toLowerCase();
+}
+
+/**
+ * Trims, lowercases, and dedupes tags, preserving the first occurrence's order.
+ * Empty strings are dropped.
+ */
+export function normalizeTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const tag of tags) {
+    const normalized = normalizeTag(tag);
+    if (normalized.length === 0 || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+/** Write-path tag list. `CardSchema` keeps the plain `TagSchema` so stored mixed-case docs still parse. */
+export const NormalizedTagsSchema = z.array(TagSchema).transform((tags) => normalizeTags(tags));
+
 export const HandleSchema = z
   .string()
   .trim()

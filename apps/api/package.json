@@ -29,6 +29,7 @@
     "test:comments-recurrence": "vitest run tests/comments-recurrence.test.ts",
     "test:prioritization": "vitest run tests/prioritization.test.ts",
     "test:mcp": "vitest run tests/mcp.test.ts",
+    "test:tags": "vitest run tests/tags.test.ts",
     "test:events": "vitest run tests/events.test.ts",
     "test:webhooks": "vitest run tests/webhooks.test.ts",
     "test:jobs": "vitest run tests/jobs.test.ts",

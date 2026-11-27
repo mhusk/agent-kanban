@@ -109,7 +109,7 @@ Detailed step-by-step cloud provisioning and WorkOS AuthKit gotchas live in [`do
 - **Discovery Metadata:** `https://<your-domain>/.well-known/oauth-protected-resource` (RFC 9728)
 - **Authentication:** WorkOS OAuth 2.1 Bearer JWT or personal API key (`Authorization: Bearer <token>`), plus optional `X-Agent-Name` header for activity attribution.
   - **Static API key setup (e.g., Grok `Connect Apps → Add MCP Server`):** Point to `https://<your-domain>/mcp` and set custom HTTP headers `Authorization: Bearer <API_KEY>` (and optional `X-Agent-Name: Chief of Staff`) so clients don't attempt OAuth Dynamic Client Registration against WorkOS.
-- Includes 20 shared-handler tools: `list_cards`, `get_card`, `get_card_by_trello`, `search_cards`, `smart_query_cards`, `get_workspace_snapshot`, `create_card`, `update_card`, `bulk_update_cards`, `bulk_update_priorities`, `change_card_status`, `complete_card`, `archive_card`, `get_activity`, `add_comment`, `manage_checklist`, `toggle_checklist_item`, `manage_link`, `list_events`, and `manage_subscriptions`.
+- Includes 21 shared-handler tools: `list_cards`, `list_tags`, `get_card`, `get_card_by_trello`, `search_cards`, `smart_query_cards`, `get_workspace_snapshot`, `create_card`, `update_card`, `bulk_update_cards`, `bulk_update_priorities`, `change_card_status`, `complete_card`, `archive_card`, `get_activity`, `add_comment`, `manage_checklist`, `toggle_checklist_item`, `manage_link`, `list_events`, and `manage_subscriptions`.
 
 ### 2. Custom Agents via REST API Key
 

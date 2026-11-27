@@ -6,8 +6,8 @@ import {
   EntityIdSchema,
   HttpsUrlSchema,
   IsoDateTimeSchema,
+  NormalizedTagsSchema,
   NoteSchema,
-  TagSchema,
 } from './common.js';
 
 export const AgentAuthTypeSchema = z.enum(['oauth', 'api_key']);
@@ -72,7 +72,7 @@ export type EventDeliveryStatus = z.infer<typeof EventDeliveryStatusSchema>;
 
 export const SubscriptionFiltersSchema = z.object({
   eventTypes: z.array(EventTypeSchema).min(1),
-  tags: z.array(TagSchema).optional(),
+  tags: NormalizedTagsSchema.optional(),
   statuses: z.array(CardStatusSchema).optional(),
   assignedUserIds: z.array(EntityIdSchema).optional(),
   mentionedUserIds: z.array(EntityIdSchema).optional(),

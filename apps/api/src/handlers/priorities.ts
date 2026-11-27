@@ -7,6 +7,8 @@ import {
   UserSchema,
   isDueSoon,
   isOverdue,
+  normalizeTag,
+  normalizeTags,
   resolveEffectiveDueInstant,
   type Card,
   type Comment,
@@ -28,12 +30,12 @@ import {
   assertCardVisible,
   compareTodoCards,
   compareUpdatedDesc,
-  dedupeStrings,
   nextMonotonicIso,
   parseStoredCard,
   type CompleteCardHandlerDeps,
   type CreateCardHandlerOptions,
 } from './cards.js';
+import { aggregateTagSummaries } from './tags.js';
 
 const BULK_TRACKED_DIFF_FIELDS = [
   'status',
@@ -169,13 +171,20 @@ export async function bulkUpdateCardsHandler(
         const nowIso = nextMonotonicIso(existing.updatedAt, now);
 
         const status = update.status ?? existing.status;
-        let tags = update.tags !== undefined ? dedupeStrings(update.tags) : [...existing.tags];
-        if (update.addTags && update.addTags.length > 0) {
-          tags = dedupeStrings([...tags, ...update.addTags]);
+        const touchesTags =
+          update.tags !== undefined ||
+          update.addTags !== undefined ||
+          update.removeTags !== undefined;
+        let tags = update.tags !== undefined ? [...update.tags] : [...existing.tags];
+        if (update.addTags !== undefined && update.addTags.length > 0) {
+          tags = [...tags, ...update.addTags];
         }
-        if (update.removeTags && update.removeTags.length > 0) {
-          const removeSet = new Set(update.removeTags);
-          tags = tags.filter((tag) => !removeSet.has(tag));
+        if (update.removeTags !== undefined && update.removeTags.length > 0) {
+          const removeSet = new Set(update.removeTags.map((tag) => normalizeTag(tag)));
+          tags = tags.filter((tag) => !removeSet.has(normalizeTag(tag)));
+        }
+        if (touchesTags) {
+          tags = normalizeTags(tags);
         }
 
         const dueChanged =
@@ -300,6 +309,11 @@ export interface SnapshotCardSummary extends Card {
   latestComment: Comment | null;
 }
 
+export interface WorkspaceSnapshotTagSummary {
+  tag: string;
+  openCount: number;
+}
+
 export interface WorkspaceSnapshotResult {
   generatedAt: string;
   timezone: string;
@@ -312,6 +326,7 @@ export interface WorkspaceSnapshotResult {
     done: number;
     open: number;
   };
+  tags: WorkspaceSnapshotTagSummary[];
   cards: SnapshotCardSummary[];
 }
 
@@ -395,6 +410,11 @@ export async function workspaceSnapshotHandler(
     };
   });
 
+  const tags = aggregateTagSummaries(allCards).map((summary) => ({
+    tag: summary.tag,
+    openCount: summary.openCount,
+  }));
+
   return {
     generatedAt: now.toISOString(),
     timezone: tz,
@@ -407,6 +427,7 @@ export async function workspaceSnapshotHandler(
       done: doneCount,
       open: openCards.length,
     },
+    tags,
     cards,
   };
 }

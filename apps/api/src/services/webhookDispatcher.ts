@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 import {
   EventSchema,
+  normalizeTag,
   type Event,
   type EventDeliveryStatus,
   type Subscription,
@@ -59,6 +60,17 @@ function intersects(a: readonly string[], b: readonly string[]): boolean {
   return a.some((item) => setB.has(item));
 }
 
+function intersectsNormalizedTags(
+  filterTags: readonly string[],
+  eventTags: readonly string[],
+): boolean {
+  if (filterTags.length === 0 || eventTags.length === 0) {
+    return false;
+  }
+  const eventTagSet = new Set(eventTags.map((tag) => normalizeTag(tag)));
+  return filterTags.some((tag) => eventTagSet.has(normalizeTag(tag)));
+}
+
 /**
  * Evaluates whether an event satisfies a webhook subscription's active flag,
  * agent loop suppression invariant, user visibility, and all configured filters.
@@ -88,7 +100,7 @@ export function matchesSubscription(
 
   if (filters.tags && filters.tags.length > 0) {
     const eventTags = readStringArray(event.payload.tags);
-    if (!intersects(filters.tags, eventTags)) {
+    if (!intersectsNormalizedTags(filters.tags, eventTags)) {
       return false;
     }
   }

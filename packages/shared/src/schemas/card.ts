@@ -4,8 +4,10 @@ import {
   HttpUrlSchema,
   IanaTimezoneSchema,
   IsoDateTimeSchema,
+  NormalizedTagsSchema,
   NoteSchema,
   TagSchema,
+  normalizeTag,
 } from './common.js';
 
 export const CardStatusSchema = z.enum(['todo', 'doing', 'blocked', 'done']);
@@ -197,7 +199,7 @@ export const CreateCardInputSchema = z.object({
   title: z.string().trim().min(1).max(300),
   description: z.string().max(20000).optional().default(''),
   status: CardStatusSchema.optional().default('todo'),
-  tags: z.array(TagSchema).optional().default([]),
+  tags: NormalizedTagsSchema.optional().default([]),
   assignedUserIds: z.array(EntityIdSchema).optional(),
   awareUserIds: z.array(EntityIdSchema).optional().default([]),
   priorityScore: PriorityScoreSchema.optional().default(null),
@@ -218,7 +220,7 @@ export const UpdateCardInputSchema = z.object({
   title: z.string().trim().min(1).max(300).optional(),
   description: z.string().max(20000).optional(),
   status: CardStatusSchema.optional(),
-  tags: z.array(TagSchema).optional(),
+  tags: NormalizedTagsSchema.optional(),
   assignedUserIds: z.array(EntityIdSchema).optional(),
   awareUserIds: z.array(EntityIdSchema).optional(),
   priorityScore: PriorityScoreSchema.optional(),
@@ -271,9 +273,9 @@ export type BulkPriorityUpdate = z.infer<typeof BulkPriorityUpdateSchema>;
 export const BulkCardUpdateItemSchema = z.object({
   cardId: EntityIdSchema,
   status: CardStatusSchema.optional(),
-  tags: z.array(TagSchema).optional(),
-  addTags: z.array(TagSchema).optional(),
-  removeTags: z.array(TagSchema).optional(),
+  tags: NormalizedTagsSchema.optional(),
+  addTags: NormalizedTagsSchema.optional(),
+  removeTags: NormalizedTagsSchema.optional(),
   due: IsoDateTimeSchema.nullable().optional(),
   dueFirm: z.boolean().optional(),
   dueHasTime: z.boolean().optional(),
@@ -289,6 +291,19 @@ export type BulkCardUpdate = z.infer<typeof BulkCardUpdateSchema>;
 
 export const SmartQueryTypeSchema = z.enum(['overdue_or_due_within_days', 'stale_in_todo_days']);
 export type SmartQueryType = z.infer<typeof SmartQueryTypeSchema>;
+
+export const RenameTagInputSchema = z
+  .object({
+    fromTag: TagSchema,
+    toTag: TagSchema.nullable(),
+    note: NoteSchema.optional(),
+  })
+  .transform((value) => ({
+    fromTag: normalizeTag(value.fromTag),
+    toTag: value.toTag === null ? null : normalizeTag(value.toTag),
+    note: value.note,
+  }));
+export type RenameTagInput = z.infer<typeof RenameTagInputSchema>;
 
 export const SmartQueryInputSchema = z.object({
   query: SmartQueryTypeSchema,

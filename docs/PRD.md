@@ -186,3 +186,32 @@ agent-kanban/
 - **Blaze / Storage cost spikes:** $5/month budget alert; 10 MB per-file cap with client-side image compression; event-driven webhooks eliminate heavy bot polling.
 - **Webhook security & replay:** HTTPS only; `Bearer` or timestamped `HMAC` signatures; unique `eventId` on retries; revocable secrets.
 - **Scope creep toward Trello parity:** Keep `agent-kanban` opinionated—add features only when daily use demands them.
+
+---
+
+## 10. v1.1 Addendum: Agent-First Triage, Schedules & Desktop Speed
+
+Building on the v1 foundation (`M0`–`M4`), v1.1 removes daily friction for human triage on desktop and mobile while tightening the shared data contract for BYOA agents:
+
+- **Shared Tag Vocabulary & Hygiene:**
+  - Normalize tags to trimmed lowercase on write (`normalizeTag` / `normalizeTags`) while keeping case-insensitive matching in API filters, UI filters, and webhook `filters.tags[]` for backwards compatibility with pre-v1.1 cards.
+  - Expose visibility-scoped, frequency-sorted tags via `GET /api/tags`, MCP `list_tags`, and `tags[]` inside `GET /api/workspace/snapshot`.
+  - Provide a reusable `TagPicker` autocomplete component across Quick-Add, Card Detail, bulk tagging, and quick popovers, plus a Settings Tag Manager (`POST /api/tags/rename`) to rename, merge, or delete tags across visible cards.
+- **Snooze (`deferUntil`), Recurring Auto-Defer & `Schedule` View:**
+  - Add optional `deferUntil` (ISO timestamp) and `lastCompletedAt` on cards, plus optional `autoDefer` (default `true`) and `leadDays` on recurrence rules.
+  - On recurring card completion (`autoDefer !== false`), automatically compute `deferUntil` using explicit `leadDays` or a cadence smart default (`0` days for daily / `< 7` days, `1` day before for weekly / `7–13` days, `3` days before for monthly / `>= 14` days).
+  - Hide cards with `deferUntil > now` from the default `To-Do` view and separate them into `deferredCards[]` in `workspaceSnapshot`. The 15-minute `scanDueCards` cron clears elapsed `deferUntil` timestamps and emits `card.unsnoozed` so agents score cards right as they resurface.
+  - Add a 5th `Schedule` (`/schedule`) tab with two modes: **Upcoming** (grouped into *Due / Active Now*, *Next 7 Days*, *Next 30 Days*, and *Later*, including snoozed cards and projected recurring occurrences) and **All Recurring** (master cadence list with `lastCompletedAt`, next due, wake-up date, and quick actions).
+- **Human Priority Nudges (BYOA-Respecting):**
+  - Keep agents as sole owners of numeric `priorityScore` (`0–100`). Humans steer priority via `pinned: boolean` (sorts pinned cards at the top of `To-Do`, survives nightly `bulk_update_priorities`, auto-clears on completion/archive) and **Request AI Rescore** (`POST /api/cards/:id/rescore`, clearing score/reason and emitting `card.rescore_requested`).
+- **Multi-Select & Hardened Bulk Safety:**
+  - Expand `PATCH /api/cards/bulk` with assignee/aware deltas, `deferUntil`, `pinned`, and `rescoreRequested`; reject `status: 'done'` on recurring cards in `PATCH /api/cards/bulk` in favor of recurring-safe `POST /api/cards/bulk/complete` (and MCP `bulk_complete_cards`).
+  - Emit a single visibility-grouped `cards.bulk_updated` batch event per distinct `visibleToUserIds` set instead of `N` individual `card.updated` events, preventing webhook storms while preserving strict visibility isolation and agent loop suppression.
+  - Add desktop hover / `Shift+Click` / `x` multi-select, mobile `Select` mode, and a sticky Bulk Action Bar.
+- **Trello-Inspired Desktop Shortcuts & `Cmd+K` Command Palette:**
+  - Keep the focused `max-w-xl` single-column layout in List mode and add keyboard-first triage (`j`/`k` cursor, `x` select, `Enter`/`o` open, `Esc` clear/close, `n` new card, `/` search, `Cmd+K`/`Ctrl+K` command palette, `?` cheatsheet, `g` + `t`/`a`/`r`/`d`/`s` navigation).
+  - Support instant single-key actions and inline quick-edit popovers (`c` archive with Undo toast, `m` members, `Space` assign-to-me, `l` tags, `d` due date, `s` status, `h` snooze, `p` pin, `r` rescore, `Shift+Enter`/`v` complete with Undo toast) consistently across multi-selected cards, the focused/hovered list card, and Card Detail.
+- **Desktop Horizontally Scrollable Kanban Board (`>= 1024px`):**
+  - Provide a desktop-only **Board | List** switcher in the header (hotkey `b`, persisted in `localStorage`), defaulting to **Board** at `>= 1024px` while mobile (`< 1024px`) stays strictly on the single-column tabs with the toggle hidden.
+  - Render 4 fixed status columns (**To-Do** with a crisp visual divider after Pinned + Top 5 and collapsible rest, **Doing**, **Blocked**, and **Done** with an archived toggle) plus an optional toggleable **Snoozed** column in a full-width `overflow-x-auto` layout (`w-80` independently scrollable columns).
+  - Support cross-column drag-and-drop (multi-select aware; dropping onto `Done` runs recurring-safe `complete`/`bulk/complete`; dragging out of `Snoozed` wakes the card; dropping onto `Snoozed` opens Snooze presets; no fake within-column reordering), inline `+ Add a card` column composers (defaulting "Share with household" ON + active tag filter, plus `"More options…"` -> `QuickAddModal`), a slide-over Card Detail drawer preserving board scroll/filters, and 2D keyboard navigation (`ArrowLeft`/`ArrowRight` across columns, `[` / `]` or `Shift+ArrowLeft`/`Shift+ArrowRight` to move cards across columns).

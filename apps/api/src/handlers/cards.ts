@@ -16,6 +16,8 @@ import {
   buildSearchTokens,
   computeNextDueDate,
   matchesSearchQuery,
+  normalizeTag,
+  normalizeTags,
   tokenizeQuery,
   type Activity,
   type Card,
@@ -282,7 +284,7 @@ export async function createCardHandler(
         );
       }
 
-      const tags = dedupeStrings(input.tags);
+      const tags = normalizeTags(input.tags);
       const links: LinkAttachment[] = input.links.map((link) => ({
         id: `lnk-${crypto.randomUUID()}`,
         url: link.url,
@@ -394,6 +396,7 @@ export async function listCardsHandler(
     query.dueAfter !== undefined ? parseDateFilterMs(query.dueAfter, 'start') : undefined;
   const updatedSinceMs =
     query.updatedSince !== undefined ? parseDateFilterMs(query.updatedSince, 'start') : undefined;
+  const tagFilter = query.tag !== undefined ? normalizeTag(query.tag) : undefined;
 
   let firestoreQuery = db
     .collection('cards')
@@ -410,7 +413,7 @@ export async function listCardsHandler(
       if (statusFilter && !statusFilter.includes(card.status)) {
         return false;
       }
-      if (query.tag !== undefined && !card.tags.includes(query.tag)) {
+      if (tagFilter !== undefined && !card.tags.some((tag) => normalizeTag(tag) === tagFilter)) {
         return false;
       }
       if (query.assignedTo !== undefined && !card.assignedUserIds.includes(query.assignedTo)) {
@@ -589,7 +592,7 @@ export async function updateCardHandler(
     const title = input.title ?? existing.title;
     const description = input.description ?? existing.description;
     const status = input.status ?? existing.status;
-    const tags = input.tags !== undefined ? dedupeStrings(input.tags) : existing.tags;
+    const tags = input.tags !== undefined ? normalizeTags(input.tags) : existing.tags;
     const assignedUserIds =
       input.assignedUserIds !== undefined
         ? dedupeStrings(input.assignedUserIds)

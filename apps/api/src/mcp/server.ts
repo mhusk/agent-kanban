@@ -8,11 +8,11 @@ import {
   EntityIdSchema,
   EventTypeSchema,
   IsoDateTimeSchema,
+  NormalizedTagsSchema,
   NoteSchema,
   RecurrenceSchema,
   SHARED_VERSION,
   SubscriptionFiltersSchema,
-  TagSchema,
   WebhookAuthTypeSchema,
 } from '@agent-kanban/shared';
 import { z } from 'zod';
@@ -53,6 +53,7 @@ import {
   listSubscriptionsHandler,
   updateSubscriptionHandler,
 } from '../handlers/subscriptions.js';
+import { listTagsHandler } from '../handlers/tags.js';
 import { AppError } from '../lib/errors.js';
 import type { AuthContext } from '../types/express.js';
 
@@ -224,6 +225,18 @@ export function createMcpServer(
       ),
   );
 
+  server.registerTool(
+    'list_tags',
+    {
+      description:
+        'List the visibility-scoped tag vocabulary with open counts, total counts, and last-used timestamps.',
+      inputSchema: {
+        includeArchived: z.boolean().optional(),
+      },
+    },
+    async (args) => runTool(() => listTagsHandler(agentAuth(), args)),
+  );
+
   // 6. smart_query_cards
   server.registerTool(
     'smart_query_cards',
@@ -271,7 +284,7 @@ export function createMcpServer(
         title: z.string().trim().min(1).max(300),
         description: z.string().max(20000).optional(),
         status: CardStatusSchema.optional(),
-        tags: z.array(TagSchema).optional(),
+        tags: NormalizedTagsSchema.optional(),
         assignedUserIds: z.array(EntityIdSchema).optional(),
         awareUserIds: z.array(EntityIdSchema).optional(),
         priorityScore: z.number().min(0).max(100).nullable().optional(),
@@ -308,7 +321,7 @@ export function createMcpServer(
         title: z.string().trim().min(1).max(300).optional(),
         description: z.string().max(20000).optional(),
         status: CardStatusSchema.optional(),
-        tags: z.array(TagSchema).optional(),
+        tags: NormalizedTagsSchema.optional(),
         assignedUserIds: z.array(EntityIdSchema).optional(),
         awareUserIds: z.array(EntityIdSchema).optional(),
         priorityScore: z.number().min(0).max(100).nullable().optional(),

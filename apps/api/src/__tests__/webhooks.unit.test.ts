@@ -66,6 +66,29 @@ describe('Webhook filter matcher & HMAC signing', () => {
       }),
     ).toBe(false);
 
+    const mixedCaseEvent: Event = {
+      ...BASE_EVENT,
+      payload: { ...BASE_EVENT.payload, tags: ['Groceries', 'Urgent'] },
+    };
+    expect(
+      matchesSubscription(mixedCaseEvent, {
+        ...BASE_SUB,
+        filters: { eventTypes: ['card.commented'], tags: ['groceries'] },
+      }),
+    ).toBe(true);
+    expect(
+      matchesSubscription(BASE_EVENT, {
+        ...BASE_SUB,
+        filters: { eventTypes: ['card.commented'], tags: ['URGENT'] },
+      }),
+    ).toBe(true);
+    expect(
+      matchesSubscription(mixedCaseEvent, {
+        ...BASE_SUB,
+        filters: { eventTypes: ['card.commented'], tags: ['finance'] },
+      }),
+    ).toBe(false);
+
     expect(
       matchesSubscription(BASE_EVENT, {
         ...BASE_SUB,
