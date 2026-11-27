@@ -8,6 +8,7 @@ import type { AgentConnection, Card, Subscription } from '@agent-kanban/shared';
 import { seedEmulator } from '../../../scripts/seed-emulator.js';
 import {
   computeHmacSignature,
+  computeStandardWebhookSignature,
   processDueWebhookRetries,
 } from '../src/services/webhookDispatcher.js';
 
@@ -440,6 +441,18 @@ describe('Filtered webhook subscriptions, AES-GCM encryption, signed delivery & 
     expect(pendingDelivery.attemptCount).toBe(1);
     expect(typeof pendingDelivery.nextAttemptAt).toBe('string');
 
+    // Subscriptions list surfaces pending lastDelivery with HTTP 500 error
+    const pendingSubsList = await apiRequest<{ subscriptions: Subscription[] }>(
+      '/api/subscriptions',
+      {
+        token: alexToken,
+      },
+    );
+    const pendingRetrySub = pendingSubsList.data.subscriptions.find((s) => s.id === retrySub.id);
+    expect(pendingRetrySub?.lastDelivery?.status).toBe('pending');
+    expect(pendingRetrySub?.lastDelivery?.attemptCount).toBe(1);
+    expect(pendingRetrySub?.lastDelivery?.lastError).toContain('HTTP 500');
+
     // Run retry processor after the 1-minute backoff window elapses
     const afterBackoff = new Date(Date.parse(pendingDelivery.nextAttemptAt!) + 1000);
     const retrySummary = await processDueWebhookRetries(afterBackoff, { db });
@@ -463,6 +476,18 @@ describe('Filtered webhook subscriptions, AES-GCM encryption, signed delivery & 
     expect(finalDelivery.nextAttemptAt).toBeNull();
     expect(finalDelivery.lastError).toBeNull();
 
+    // Subscriptions list reflects succeeded lastDelivery with cleared error
+    const succeededSubsList = await apiRequest<{ subscriptions: Subscription[] }>(
+      '/api/subscriptions',
+      { token: alexToken },
+    );
+    const succeededRetrySub = succeededSubsList.data.subscriptions.find(
+      (s) => s.id === retrySub.id,
+    );
+    expect(succeededRetrySub?.lastDelivery?.status).toBe('succeeded');
+    expect(succeededRetrySub?.lastDelivery?.attemptCount).toBe(2);
+    expect(succeededRetrySub?.lastDelivery?.lastError).toBeNull();
+
     const eventSnap = await db.collection('events').doc(retryEventId).get();
     const eventDeliveries = (eventSnap.data()?.deliveries ?? {}) as Record<
       string,
@@ -471,7 +496,78 @@ describe('Filtered webhook subscriptions, AES-GCM encryption, signed delivery & 
     expect(eventDeliveries[retrySub.id]?.status).toBe('succeeded');
     expect(eventDeliveries[retrySub.id]?.attemptCount).toBe(2);
 
-    // Delete subscription works cleanly
+    // Pause retrySub and verify Standard Webhooks (whsec_) headers & lastDelivery mirroring
+    await apiRequest(`/api/subscriptions/${retrySub.id}`, {
+      method: 'PATCH',
+      token: alexToken,
+      body: { active: false },
+    });
+
+    const standardSecret = `whsec_${Buffer.from('standard-webhook-test-key-32byte').toString('base64')}`;
+    const stdSubRes = await apiRequest<{ subscription: Subscription }>('/api/subscriptions', {
+      method: 'POST',
+      token: alexToken,
+      body: {
+        webhookUrl: `${receiverBaseUrl}/alex-standard`,
+        authType: 'standard_webhooks',
+        secret: standardSecret,
+        filters: {
+          eventTypes: ['card.created'],
+          tags: ['standard-test'],
+        },
+      },
+    });
+    expect(stdSubRes.status).toBe(201);
+    const stdSub = stdSubRes.data.subscription;
+    expect(stdSub.authType).toBe('standard_webhooks');
+    expect(JSON.stringify(stdSubRes.data)).not.toContain(standardSecret);
+
+    captured = [];
+    const stdCardRes = await apiRequest<{ card: Card }>('/api/cards', {
+      method: 'POST',
+      token: alexToken,
+      body: {
+        title: 'Standard Webhooks delivery check',
+        tags: ['standard-test'],
+      },
+    });
+    expect(stdCardRes.status).toBe(201);
+    const stdCardId = stdCardRes.data.card.id;
+
+    const stdReq = await waitFor(() =>
+      captured.find((c) => c.path === '/alex-standard' && c.body.cardId === stdCardId),
+    );
+    expect(stdReq.headers['webhook-id']).toBe(`msg_${stdReq.body.eventId}`);
+    expect(typeof stdReq.headers['webhook-timestamp']).toBe('string');
+    expect(stdReq.headers['webhook-signature']).toBe(
+      computeStandardWebhookSignature(
+        standardSecret,
+        stdReq.headers['webhook-id'] as string,
+        stdReq.headers['webhook-timestamp'] as string,
+        stdReq.rawBody,
+      ),
+    );
+    expect(stdReq.headers.authorization).toBeUndefined();
+    expect(stdReq.headers['x-agent-kanban-signature']).toBeUndefined();
+
+    const stdSubsList = await apiRequest<{ subscriptions: Subscription[] }>('/api/subscriptions', {
+      token: alexToken,
+    });
+    const stdSubItem = stdSubsList.data.subscriptions.find((s) => s.id === stdSub.id);
+    expect(stdSubItem?.lastDelivery?.status).toBe('succeeded');
+    expect(stdSubItem?.lastDelivery?.attemptCount).toBe(1);
+    expect(stdSubItem?.lastDelivery?.lastError).toBeNull();
+
+    // Delete subscriptions cleanly
+    const delStdRes = await apiRequest<{ deleted: boolean; id: string }>(
+      `/api/subscriptions/${stdSub.id}`,
+      {
+        method: 'DELETE',
+        token: alexToken,
+      },
+    );
+    expect(delStdRes.status).toBe(200);
+
     const delRes = await apiRequest<{ deleted: boolean; id: string }>(
       `/api/subscriptions/${retrySub.id}`,
       {

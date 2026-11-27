@@ -27,6 +27,7 @@ import {
   type UpdateCardInput,
   type UpdateChecklistInput,
   type User,
+  type WebhookAuthType,
 } from '@agent-kanban/shared';
 
 export interface StructuredErrorPayload {
@@ -697,7 +698,7 @@ function parseSubscriptionRecord(raw: unknown): Subscription {
 export interface CreateSubscriptionRequest {
   connectionId?: string | null;
   webhookUrl: string;
-  authType: 'bearer' | 'hmac';
+  authType: WebhookAuthType;
   secret: string;
   filters: Subscription['filters'];
   active?: boolean;
@@ -705,7 +706,7 @@ export interface CreateSubscriptionRequest {
 
 export interface UpdateSubscriptionRequest {
   webhookUrl?: string;
-  authType?: 'bearer' | 'hmac';
+  authType?: WebhookAuthType;
   secret?: string;
   filters?: Subscription['filters'];
   active?: boolean;

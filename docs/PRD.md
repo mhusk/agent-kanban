@@ -116,7 +116,7 @@ Multi-tenant SaaS, billing, marketplaces, native iOS/Android apps, push/email no
 - **Event Types:** `card.created` (triggers mid-day AI scoring), `card.updated`, `card.status_changed`, `card.commented` (includes `mentions[]`), `card.completed`, `card.due_soon` (default 2 days in `HOUSEHOLD_TIMEZONE`), `card.overdue` (fires once when past due, or configurable daily).
 - **Subscriptions (User-Owned):** Managed via API/MCP (listed in UI). Each subscription specifies:
   - `ownerUserId`, `webhookUrl` (HTTPS only)
-  - `authType`: `bearer` (for routine/bearer-authenticated triggers) or `hmac` (signed body + timestamp for custom harnesses)
+  - `authType`: `standard_webhooks` (Standard Webhooks `whsec_` signing for Grok/standard receivers), `bearer` (for routine/bearer-authenticated triggers), or `hmac` (signed body + timestamp for custom harnesses)
   - Encrypted secret (envelope-encrypted via a master key in Secret Manager)
   - **Filters:** `eventTypes[]`, plus optional `tags[]`, `statuses[]`, `assignedUserIds[]`, or `mentionedUserIds[]`.
 - **Delivery & Fallback:** Retries with exponential backoff using the same `eventId` for receiver idempotency. Polling fallback `GET /events?since=<cursor>` retained for 30 days.
@@ -155,7 +155,7 @@ agent-kanban/
 - `cards/{cardId}/attachments/{attachmentId}`: `storagePath`, `fileName`, `contentType`, `size`, `uploadedBy`, `createdAt`
 - `activity/{activityId}`: `cardId`, `visibleToUserIds[]`, `actorType`, `actorId`, `agentName`, `platform`, `action`, `diff`, `note`, `createdAt`
 - `agentConnections/{connectionId}`: `ownerUserId`, `platform`, `authType` (`oauth`|`api_key`), `keyPrefix`, `hashedKey`, `revoked`, `rotatedAt`, `createdAt`
-- `subscriptions/{subscriptionId}`: `ownerUserId`, `connectionId`, `webhookUrl`, `authType` (`bearer`|`hmac`), `encryptedSecret`, `filters` (`eventTypes`, `tags`, `statuses`, `assignedUserIds`, `mentionedUserIds`), `active`
+- `subscriptions/{subscriptionId}`: `ownerUserId`, `connectionId`, `webhookUrl`, `authType` (`bearer`|`hmac`|`standard_webhooks`), `encryptedSecret`, `filters` (`eventTypes`, `tags`, `statuses`, `assignedUserIds`, `mentionedUserIds`), `active`, `lastDelivery`
 - `events/{eventId}`: `type`, `cardId`, `visibleToUserIds[]`, `actor`, `note`, `payload`, `createdAt`, `deliveries`
 
 ### Scheduled Jobs (Cloud Functions)

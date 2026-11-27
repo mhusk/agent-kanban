@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { RefreshCw } from 'lucide-react';
 import {
   EventTypeSchema,
   type EventType,
@@ -36,6 +37,41 @@ function formatShortDate(iso: string): string {
     day: 'numeric',
     year: 'numeric',
   }).format(new Date(ms));
+}
+
+function formatShortDateTime(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) {
+    return iso;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(ms));
+}
+
+function formatAuthTypeLabel(authType: WebhookAuthType): string {
+  switch (authType) {
+    case 'standard_webhooks':
+      return 'Standard Webhooks';
+    case 'bearer':
+      return 'Bearer';
+    case 'hmac':
+      return 'HMAC';
+  }
+}
+
+function getWebhookSecretHelpText(authType: WebhookAuthType): string {
+  switch (authType) {
+    case 'standard_webhooks':
+      return 'Paste your whsec_... signing secret (at least 16 chars; encrypted with AES-256-GCM). Sends webhook-id, webhook-timestamp, and webhook-signature headers.';
+    case 'bearer':
+      return 'At least 16 characters; encrypted at rest with AES-256-GCM. Sent as Authorization: Bearer <token>.';
+    case 'hmac':
+      return 'At least 16 characters; encrypted at rest with AES-256-GCM. Sent as X-Agent-Kanban-Signature.';
+  }
 }
 
 export function SettingsPage({ user }: { user: User }) {
@@ -631,22 +667,39 @@ export function SettingsPage({ user }: { user: User }) {
               Webhook Subscriptions
             </h2>
             <p className="mt-1 text-xs text-slate-600">
-              Filtered push notifications signed with Bearer or HMAC-SHA256. Agent actions never
-              trigger webhooks.
+              Filtered push notifications signed with Standard Webhooks (Grok), Bearer, or
+              HMAC-SHA256. Agent actions never trigger webhooks.
             </p>
           </div>
-          <button
-            type="button"
-            aria-expanded={showWebhookForm}
-            aria-controls="add-webhook-form"
-            onClick={() => {
-              setWebhookError(null);
-              setShowWebhookForm((prev) => !prev);
-            }}
-            className="min-h-11 shrink-0 rounded-xl border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-100"
-          >
-            {showWebhookForm ? 'Cancel' : 'Add webhook'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-label="Refresh webhook subscriptions"
+              disabled={subscriptionsQuery.isFetching}
+              onClick={() => {
+                void subscriptionsQuery.refetch();
+              }}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
+            >
+              <RefreshCw
+                aria-hidden="true"
+                className={`h-3.5 w-3.5 ${subscriptionsQuery.isFetching ? 'animate-spin' : ''}`}
+              />
+              <span>Refresh</span>
+            </button>
+            <button
+              type="button"
+              aria-expanded={showWebhookForm}
+              aria-controls="add-webhook-form"
+              onClick={() => {
+                setWebhookError(null);
+                setShowWebhookForm((prev) => !prev);
+              }}
+              className="min-h-11 shrink-0 rounded-xl border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+            >
+              {showWebhookForm ? 'Cancel' : 'Add webhook'}
+            </button>
+          </div>
         </div>
 
         {webhookError ? (
@@ -695,6 +748,17 @@ export function SettingsPage({ user }: { user: User }) {
                   <input
                     type="radio"
                     name="webhookAuthType"
+                    value="standard_webhooks"
+                    checked={webhookAuthType === 'standard_webhooks'}
+                    onChange={() => setWebhookAuthType('standard_webhooks')}
+                    className="h-4 w-4 accent-sky-700"
+                  />
+                  <span>Standard Webhooks (Grok)</span>
+                </label>
+                <label className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-slate-800">
+                  <input
+                    type="radio"
+                    name="webhookAuthType"
                     value="hmac"
                     checked={webhookAuthType === 'hmac'}
                     onChange={() => setWebhookAuthType('hmac')}
@@ -736,7 +800,7 @@ export function SettingsPage({ user }: { user: User }) {
                 className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm"
               />
               <p id="webhook-secret-help" className="mt-1 text-xs text-slate-500">
-                At least 16 characters; encrypted at rest with AES-256-GCM.
+                {getWebhookSecretHelpText(webhookAuthType)}
               </p>
             </div>
 
@@ -818,10 +882,44 @@ export function SettingsPage({ user }: { user: User }) {
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-700">
-                          {sub.authType === 'hmac' ? 'HMAC' : 'Bearer'}
+                          {formatAuthTypeLabel(sub.authType)}
                         </span>{' '}
                         · Created {formatShortDate(sub.createdAt)}
                       </p>
+                      {sub.lastDelivery ? (
+                        <p
+                          className={[
+                            'mt-1.5 rounded-lg px-2 py-1 text-xs break-words',
+                            sub.lastDelivery.status === 'succeeded'
+                              ? 'bg-emerald-50 text-emerald-900'
+                              : sub.lastDelivery.status === 'pending'
+                                ? 'bg-amber-50 text-amber-900'
+                                : 'bg-rose-50 text-rose-900',
+                          ].join(' ')}
+                        >
+                          {sub.lastDelivery.status === 'succeeded' ? (
+                            <>
+                              Last delivery: Succeeded
+                              {sub.lastDelivery.lastAttemptAt
+                                ? ` · ${formatShortDateTime(sub.lastDelivery.lastAttemptAt)}`
+                                : ''}
+                            </>
+                          ) : sub.lastDelivery.status === 'pending' ? (
+                            <>
+                              Last delivery: Retrying (attempt {sub.lastDelivery.attemptCount})
+                              {sub.lastDelivery.lastError ? ` · ${sub.lastDelivery.lastError}` : ''}
+                              {sub.lastDelivery.nextAttemptAt
+                                ? ` · Next retry ${formatShortDateTime(sub.lastDelivery.nextAttemptAt)}`
+                                : ''}
+                            </>
+                          ) : (
+                            <>
+                              Last delivery: Failed ({sub.lastDelivery.attemptCount} attempts)
+                              {sub.lastDelivery.lastError ? ` · ${sub.lastDelivery.lastError}` : ''}
+                            </>
+                          )}
+                        </p>
+                      ) : null}
                     </div>
 
                     <span

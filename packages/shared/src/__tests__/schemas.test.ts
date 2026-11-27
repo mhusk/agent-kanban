@@ -476,6 +476,39 @@ describe('Agent connection, Subscription & Event schemas', () => {
     });
     expect(sub.authType).toBe('bearer');
 
+    const createStandardSub = CreateSubscriptionSchema.parse({
+      webhookUrl: 'https://hooks.example.test/standard',
+      authType: 'standard_webhooks',
+      secret: 'whsec_test-standard-secret-123456',
+      filters: {
+        eventTypes: ['card.created'],
+      },
+    });
+    expect(createStandardSub.authType).toBe('standard_webhooks');
+
+    const standardSub = SubscriptionSchema.parse({
+      id: 'sub_02',
+      ownerUserId: 'user_alex',
+      connectionId: null,
+      webhookUrl: 'https://hooks.example.test/standard',
+      authType: 'standard_webhooks',
+      filters: {
+        eventTypes: ['card.created'],
+      },
+      active: true,
+      lastDelivery: {
+        status: 'pending',
+        attemptCount: 1,
+        lastAttemptAt: NOW,
+        nextAttemptAt: NOW,
+        lastError: 'HTTP 400',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    expect(standardSub.authType).toBe('standard_webhooks');
+    expect(standardSub.lastDelivery?.lastError).toBe('HTTP 400');
+
     const event = EventSchema.parse({
       id: 'evt_01',
       type: 'card.created',

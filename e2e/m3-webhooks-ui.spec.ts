@@ -128,5 +128,62 @@ test.describe('M3.4 PWA Settings: Webhook Subscriptions Panel', () => {
         .getByRole('region', { name: 'Webhook Subscriptions' })
         .getByText('https://alex-hooks.example.test/kanban'),
     ).toHaveCount(0);
+
+    // Create a Standard Webhooks (Grok) subscription, confirm badge + hidden secret + Refresh/lastDelivery display
+    const stdSecret = 'whsec_c3RhbmRhcmQtd2ViaG9vay10ZXN0LXNlY3JldA==';
+    const webhooksAfterDelete = page.getByRole('region', { name: 'Webhook Subscriptions' });
+    await webhooksAfterDelete.getByRole('button', { name: 'Add webhook' }).click();
+    await webhooksAfterDelete
+      .getByLabel('Webhook URL')
+      .fill('https://grok-hooks.example.test/automation/123');
+    await webhooksAfterDelete.getByLabel('Standard Webhooks (Grok)').check();
+    await webhooksAfterDelete.getByLabel('Signing secret').fill(stdSecret);
+    await webhooksAfterDelete.getByRole('button', { name: 'Save webhook' }).click();
+
+    await expect(
+      webhooksAfterDelete.getByText('https://grok-hooks.example.test/automation/123'),
+    ).toBeVisible();
+    await expect(webhooksAfterDelete.getByText('Standard Webhooks', { exact: true })).toBeVisible();
+    expect(await page.locator('body').innerText()).not.toContain(stdSecret);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+
+    // Simulate a delivery retry error in Firestore and verify manual Refresh surfaces it
+    const alexTokenRes = await request.post('/api/dev/token', {
+      data: { handle: 'alex' },
+    });
+    expect(alexTokenRes.ok()).toBe(true);
+    const { token: alexToken } = (await alexTokenRes.json()) as { token: string };
+    const subsRes = await request.get('/api/subscriptions', {
+      headers: { authorization: `Bearer ${alexToken}` },
+    });
+    expect(subsRes.ok()).toBe(true);
+    const subsBody = (await subsRes.json()) as { subscriptions: Array<{ id: string }> };
+    const createdSubId = subsBody.subscriptions[0]?.id;
+    expect(createdSubId).toBeTruthy();
+
+    const { getApp, getApps, initializeApp } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    process.env.FIRESTORE_EMULATOR_HOST = FIRESTORE_HOST;
+    const app = getApps().length > 0 ? getApp() : initializeApp({ projectId: PROJECT_ID });
+    const db = getFirestore(app);
+    await db
+      .collection('subscriptions')
+      .doc(createdSubId!)
+      .update({
+        lastDelivery: {
+          status: 'pending',
+          attemptCount: 1,
+          lastAttemptAt: new Date().toISOString(),
+          nextAttemptAt: new Date(Date.now() + 60_000).toISOString(),
+          lastError: 'HTTP 400',
+        },
+      });
+
+    await webhooksAfterDelete
+      .getByRole('button', { name: 'Refresh webhook subscriptions' })
+      .click();
+    await expect(webhooksAfterDelete.getByText(/Retrying \(attempt 1\)/)).toBeVisible();
+    await expect(webhooksAfterDelete.getByText(/HTTP 400/)).toBeVisible();
+    expect(await hasHorizontalOverflow(page)).toBe(false);
   });
 });

@@ -41,8 +41,17 @@ export const EventTypeSchema = z.enum([
 ]);
 export type EventType = z.infer<typeof EventTypeSchema>;
 
-export const WebhookAuthTypeSchema = z.enum(['bearer', 'hmac']);
+export const WebhookAuthTypeSchema = z.enum(['bearer', 'hmac', 'standard_webhooks']);
 export type WebhookAuthType = z.infer<typeof WebhookAuthTypeSchema>;
+
+export const EventDeliveryStatusSchema = z.object({
+  status: z.enum(['pending', 'succeeded', 'failed']),
+  attemptCount: z.number().int().min(0),
+  lastAttemptAt: IsoDateTimeSchema.nullable().optional(),
+  nextAttemptAt: IsoDateTimeSchema.nullable().optional(),
+  lastError: z.string().nullable().optional(),
+});
+export type EventDeliveryStatus = z.infer<typeof EventDeliveryStatusSchema>;
 
 export const SubscriptionFiltersSchema = z.object({
   eventTypes: z.array(EventTypeSchema).min(1),
@@ -61,6 +70,7 @@ export const SubscriptionSchema = z.object({
   authType: WebhookAuthTypeSchema,
   filters: SubscriptionFiltersSchema,
   active: z.boolean().default(true),
+  lastDelivery: EventDeliveryStatusSchema.nullable().optional(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
 });
@@ -107,15 +117,6 @@ export const EventActorSchema = z.object({
   platform: z.string().trim().min(1).max(120).nullable().default(null),
 });
 export type EventActor = z.infer<typeof EventActorSchema>;
-
-export const EventDeliveryStatusSchema = z.object({
-  status: z.enum(['pending', 'succeeded', 'failed']),
-  attemptCount: z.number().int().min(0),
-  lastAttemptAt: IsoDateTimeSchema.nullable().optional(),
-  nextAttemptAt: IsoDateTimeSchema.nullable().optional(),
-  lastError: z.string().nullable().optional(),
-});
-export type EventDeliveryStatus = z.infer<typeof EventDeliveryStatusSchema>;
 
 export const EventSchema = z.object({
   id: EntityIdSchema,

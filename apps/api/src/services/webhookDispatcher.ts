@@ -130,6 +130,22 @@ export function computeHmacSignature(secret: string, unixSeconds: string, rawBod
   return `t=${unixSeconds},v1=${digest}`;
 }
 
+export function computeStandardWebhookSignature(
+  secret: string,
+  webhookId: string,
+  unixSeconds: string,
+  rawBody: string,
+): string {
+  const rawKey = secret.startsWith('whsec_') ? secret.slice('whsec_'.length) : secret;
+  const decoded = Buffer.from(rawKey, 'base64');
+  const key = decoded.length > 0 ? decoded : Buffer.from(rawKey, 'utf8');
+  const digest = crypto
+    .createHmac('sha256', key)
+    .update(`${webhookId}.${unixSeconds}.${rawBody}`)
+    .digest('base64');
+  return `v1,${digest}`;
+}
+
 export function computeNextRetryIso(attemptCount: number, now: Date): string | null {
   if (attemptCount >= MAX_DELIVERY_ATTEMPTS) {
     return null;
@@ -169,6 +185,16 @@ export async function deliverWebhookOnce(params: {
 
   if (params.subscription.authType === 'bearer') {
     headers.Authorization = `Bearer ${params.secret}`;
+  } else if (params.subscription.authType === 'standard_webhooks') {
+    const webhookId = `msg_${params.event.id}`;
+    headers['webhook-id'] = webhookId;
+    headers['webhook-timestamp'] = unixSeconds;
+    headers['webhook-signature'] = computeStandardWebhookSignature(
+      params.secret,
+      webhookId,
+      unixSeconds,
+      rawBody,
+    );
   } else {
     headers['X-Agent-Kanban-Signature'] = computeHmacSignature(params.secret, unixSeconds, rawBody);
   }
@@ -245,6 +271,11 @@ async function recordDeliveryOutcome(params: {
     .collection('events')
     .doc(params.eventId)
     .set({ deliveries: { [params.subscriptionId]: summary } }, { merge: true });
+  await params.db
+    .collection('subscriptions')
+    .doc(params.subscriptionId)
+    .update({ lastDelivery: summary })
+    .catch(() => undefined);
 }
 
 /**
