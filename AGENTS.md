@@ -61,3 +61,7 @@ If a validation command fails and you cannot resolve it cleanly after investigat
 - Do **not** check off the step.
 - Do **not** leave broken code committed to `main`.
 - Summarize the exact failing command, error output, root cause hypothesis, and options, and stop to ask the user.
+
+## 4. Feature plans
+
+New feature implementation plans go in `docs/features/`, one file per feature, named after the feature (kebab-case). `docs/IMPLEMENTATION_PLAN.md` links to those files by path and does not duplicate them. If a feature idea is not defined yet, both the feature file and the link in `docs/IMPLEMENTATION_PLAN.md` must say so and must not invent the design.
