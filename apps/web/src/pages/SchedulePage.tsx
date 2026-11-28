@@ -281,9 +281,7 @@ function TimelineRow({
             {item.snoozedLabel}
           </span>
         ) : null}
-        {cadenceLabel ? (
-          <span className="font-medium text-slate-500">{cadenceLabel}</span>
-        ) : null}
+        {cadenceLabel ? <span className="font-medium text-slate-500">{cadenceLabel}</span> : null}
       </div>
       {item.kind === 'snoozed' ? (
         <div className="mt-3">
