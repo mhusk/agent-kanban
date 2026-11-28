@@ -5,6 +5,7 @@ import {
   buildUpcomingTimeline,
   calendarDayKey,
   countSnoozedCards,
+  formatScheduleCadence,
   formatSnoozeChips,
   groupUpcomingTimeline,
 } from '../lib/scheduleUi.js';
@@ -112,6 +113,16 @@ describe('schedule timezone buckets', () => {
         ?.items.some((item) => item.card.id === 'card-snoozed' && item.kind === 'occurrence'),
     ).toBe(true);
     expect(countSnoozedCards({ recurring: [{ card: snoozed }], deferredCards: [] }, now)).toBe(1);
+  });
+
+  it('describes standard cron and interval cadence in editor sentences', () => {
+    expect(formatScheduleCadence({ type: 'cron', expression: '0 5 * * 0' })).toBe(
+      'Every Sunday at 5:00 AM',
+    );
+    expect(
+      formatScheduleCadence({ type: 'interval_after_completion', every: 30, unit: 'days' }),
+    ).toBe('Every 30 days after completion');
+    expect(formatScheduleCadence(null)).toBeNull();
   });
 
   it('maps day offsets onto the four timeline windows', () => {

@@ -15,6 +15,7 @@ import {
   buildUpcomingTimeline,
   formatLastCompletedSummary,
   formatLeadDaysSummary,
+  formatScheduleCadence,
   formatScheduleInstant,
   groupUpcomingTimeline,
   type UpcomingTimelineItem,
@@ -251,6 +252,7 @@ function TimelineRow({
       : item.kind === 'snoozed'
         ? `Wakes ${formatScheduleInstant(item.whenIso, timeZone, false)}`
         : formatScheduleInstant(item.whenIso, timeZone, item.dateOnly);
+  const cadenceLabel = formatScheduleCadence(item.card.recurrence);
 
   return (
     <li className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
@@ -279,7 +281,9 @@ function TimelineRow({
             {item.snoozedLabel}
           </span>
         ) : null}
-        {item.cadence ? <span className="font-medium text-slate-500">{item.cadence}</span> : null}
+        {cadenceLabel ? (
+          <span className="font-medium text-slate-500">{cadenceLabel}</span>
+        ) : null}
       </div>
       {item.kind === 'snoozed' ? (
         <div className="mt-3">
@@ -357,6 +361,7 @@ function RecurringMasterRow({
 }) {
   const nextDue = entry.card.due ?? entry.nextOccurrences[0] ?? null;
   const deferred = isCardDeferred(entry.card, now);
+  const cadenceLabel = formatScheduleCadence(entry.card.recurrence);
 
   return (
     <li className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
@@ -367,10 +372,12 @@ function RecurringMasterRow({
         {entry.card.title}
       </Link>
       <dl className="mt-2 space-y-1 text-xs text-slate-600">
-        <div>
-          <dt className="sr-only">Cadence</dt>
-          <dd className="font-medium text-slate-800">{entry.cadence}</dd>
-        </div>
+        {cadenceLabel ? (
+          <div>
+            <dt className="sr-only">Cadence</dt>
+            <dd className="font-medium text-slate-800">{cadenceLabel}</dd>
+          </div>
+        ) : null}
         <div>
           <dt className="sr-only">Completion</dt>
           <dd>{formatLastCompletedSummary(entry.card.lastCompletedAt, timeZone)}</dd>

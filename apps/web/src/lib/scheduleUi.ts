@@ -1,4 +1,5 @@
-import { isCardDeferred, type Card } from '@agent-kanban/shared';
+import { isCardDeferred, type Card, type Recurrence } from '@agent-kanban/shared';
+import { describeRecurrence } from './recurrenceUi.js';
 
 export type ScheduleBucketId = 'now' | 'next7' | 'next30' | 'later';
 
@@ -321,6 +322,14 @@ function activeItem(entry: ScheduleCardRef, timeZone: string, now: Date): Upcomi
     cadence: entry.cadence,
     sortOffset: offset,
   };
+}
+
+/** Human-readable cadence for the Schedule tab. Null when the card does not repeat. */
+export function formatScheduleCadence(recurrence: Recurrence | null): string | null {
+  if (recurrence === null) {
+    return null;
+  }
+  return describeRecurrence(recurrence);
 }
 
 function localMorning(now: Date, plusDays: number): string {
