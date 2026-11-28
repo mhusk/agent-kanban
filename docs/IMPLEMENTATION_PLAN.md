@@ -108,6 +108,14 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 
 ---
 
+## Feature ideas
+
+Not implementation steps and not ready to build. The plan for each idea lives in `docs/features/`. This file only links to that path.
+
+- [`docs/features/trello-json-card-import.md`](features/trello-json-card-import.md) — the idea is not defined yet.
+
+---
+
 ## Milestone 0: Monorepo, Tooling, Emulators, Auth & CI/CD
 
 ### - [x] Step M0.1: Monorepo workspace, TypeScript, lint/format, privacy hygiene check & package skeleton
