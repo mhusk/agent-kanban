@@ -83,7 +83,7 @@ test.describe('M4.3 PWA Installability, Manifest, Icons, Offline Banner & Polish
     // Verify >= 44px tap targets on bottom nav links and FAB
     const navLinks = page.getByRole('navigation', { name: 'Primary' }).getByRole('link');
     const linkCount = await navLinks.count();
-    expect(linkCount).toBe(4);
+    expect(linkCount).toBe(5);
     for (let i = 0; i < linkCount; i += 1) {
       const box = await navLinks.nth(i).boundingBox();
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);

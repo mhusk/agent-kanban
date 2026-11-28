@@ -2,6 +2,7 @@ import type { Card, User } from '@agent-kanban/shared';
 import { MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDueMeta, getChecklistProgress, getUserInitials } from '../lib/format.js';
+import { describeRecurrence } from '../lib/recurrenceUi.js';
 
 export interface CardRowProps {
   card: Card;
@@ -92,6 +93,12 @@ export function CardRow({ card, usersById, showArchivedBadge = false }: CardRowP
               </span>
             ) : null}
 
+            {card.pinned ? (
+              <span className="inline-flex items-center rounded-md border border-amber-400 bg-amber-50 px-2 py-0.5 font-semibold text-amber-950">
+                Pinned
+              </span>
+            ) : null}
+
             {card.recurrence !== null ? (
               <span
                 title="Recurring card"
@@ -99,6 +106,12 @@ export function CardRow({ card, usersById, showArchivedBadge = false }: CardRowP
                 className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 font-medium text-indigo-800"
               >
                 ↻ Recurring
+              </span>
+            ) : null}
+
+            {card.recurrence !== null ? (
+              <span className="font-medium text-slate-500">
+                {describeRecurrence(card.recurrence)}
               </span>
             ) : null}
 

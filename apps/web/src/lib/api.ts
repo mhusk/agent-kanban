@@ -230,6 +230,8 @@ export interface CardListFilters {
   awareOf?: string;
   archived?: 'true' | 'false' | 'all';
   sort?: 'priority' | 'updated';
+  includeDeferred?: 'true' | 'false';
+  hasRecurrence?: 'true' | 'false';
 }
 
 export async function fetchCards(
@@ -255,6 +257,12 @@ export async function fetchCards(
   }
   if (filters.sort !== undefined) {
     params.set('sort', filters.sort);
+  }
+  if (filters.includeDeferred !== undefined) {
+    params.set('includeDeferred', filters.includeDeferred);
+  }
+  if (filters.hasRecurrence !== undefined) {
+    params.set('hasRecurrence', filters.hasRecurrence);
   }
   const qs = params.toString();
   const path = qs.length > 0 ? `/api/cards?${qs}` : '/api/cards';
@@ -329,6 +337,135 @@ export async function changeCardStatus(
     {
       method: 'POST',
       body: { status, ...opts },
+      getAccessToken,
+    },
+  );
+  return CardSchema.parse(data.card);
+}
+
+export interface RecurringScheduleEntry {
+  card: Card;
+  nextOccurrences: string[];
+  cadence: string;
+  effectiveLeadDays: number;
+}
+
+export interface RecurringSchedule {
+  generatedAt: string;
+  timezone: string;
+  horizonDays: number;
+  recurring: RecurringScheduleEntry[];
+  deferredCards: Card[];
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+export async function fetchRecurringSchedule(
+  getAccessToken: AccessTokenProvider,
+  horizonDays = 60,
+  signal?: AbortSignal,
+): Promise<RecurringSchedule> {
+  const params = new URLSearchParams({ horizonDays: String(horizonDays) });
+  const data = await apiRequest<unknown>(`/api/cards/recurring?${params.toString()}`, {
+    getAccessToken,
+    signal,
+  });
+  if (!data || typeof data !== 'object') {
+    throw new ApiError(
+      500,
+      'INVALID_SCHEDULE_RESPONSE',
+      'Recurring schedule response was not valid',
+    );
+  }
+  const record = data as Record<string, unknown>;
+  if (
+    typeof record.generatedAt !== 'string' ||
+    typeof record.timezone !== 'string' ||
+    typeof record.horizonDays !== 'number' ||
+    !Array.isArray(record.recurring) ||
+    !Array.isArray(record.deferredCards)
+  ) {
+    throw new ApiError(
+      500,
+      'INVALID_SCHEDULE_RESPONSE',
+      'Recurring schedule response was not valid',
+    );
+  }
+
+  const recurring = record.recurring.map((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new ApiError(
+        500,
+        'INVALID_SCHEDULE_RESPONSE',
+        'Recurring schedule response was not valid',
+      );
+    }
+    const row = entry as Record<string, unknown>;
+    if (
+      typeof row.cadence !== 'string' ||
+      typeof row.effectiveLeadDays !== 'number' ||
+      !Number.isFinite(row.effectiveLeadDays) ||
+      !isStringArray(row.nextOccurrences)
+    ) {
+      throw new ApiError(
+        500,
+        'INVALID_SCHEDULE_RESPONSE',
+        'Recurring schedule response was not valid',
+      );
+    }
+    return {
+      card: CardSchema.parse(row.card),
+      nextOccurrences: row.nextOccurrences,
+      cadence: row.cadence,
+      effectiveLeadDays: row.effectiveLeadDays,
+    };
+  });
+
+  return {
+    generatedAt: record.generatedAt,
+    timezone: record.timezone,
+    horizonDays: record.horizonDays,
+    recurring,
+    deferredCards: CardSchema.array().parse(record.deferredCards),
+  };
+}
+
+export async function updateCardPinned(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  pinned: boolean,
+  ifUpdatedAt?: string,
+): Promise<Card> {
+  return updateCard(getAccessToken, cardId, {
+    pinned,
+    ...(ifUpdatedAt !== undefined ? { ifUpdatedAt } : {}),
+  });
+}
+
+export async function updateCardDeferUntil(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  deferUntil: string | null,
+  ifUpdatedAt?: string,
+): Promise<Card> {
+  return updateCard(getAccessToken, cardId, {
+    deferUntil,
+    ...(ifUpdatedAt !== undefined ? { ifUpdatedAt } : {}),
+  });
+}
+
+export async function rescoreCard(
+  getAccessToken: AccessTokenProvider,
+  cardId: string,
+  opts?: { ifUpdatedAt?: string; note?: string },
+): Promise<Card> {
+  const data = await apiRequest<{ card: unknown }>(
+    `/api/cards/${encodeURIComponent(cardId)}/rescore`,
+    {
+      method: 'POST',
+      body: opts ?? {},
       getAccessToken,
     },
   );

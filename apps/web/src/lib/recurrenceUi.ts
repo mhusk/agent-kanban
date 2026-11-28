@@ -12,6 +12,10 @@ export interface RecurrenceFormState {
   intervalUnit: RecurrenceUnit;
   cronExpression: string;
   timezone: string;
+  /** When false, completing the card leaves it on To-Do. */
+  autoDefer: boolean;
+  /** Empty string keeps the smart cadence default. Otherwise a whole number 0–365. */
+  leadDaysInput: string;
 }
 
 export const WEEKDAY_OPTIONS: ReadonlyArray<{
@@ -38,7 +42,141 @@ export function createDefaultRecurrenceFormState(defaultWeekday = 6): Recurrence
     intervalUnit: 'days',
     cronExpression: '0 9 * * 6',
     timezone: '',
+    autoDefer: true,
+    leadDaysInput: '',
   };
+}
+
+export function parseLeadDaysInput(raw: string): number | undefined | 'invalid' {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return 'invalid';
+  }
+  const value = Number(trimmed);
+  if (value > 365) {
+    return 'invalid';
+  }
+  return value;
+}
+
+function leadDaysForCadenceSpan(spanDays: number): number {
+  if (spanDays < 7) {
+    return 0;
+  }
+  if (spanDays <= 13) {
+    return 1;
+  }
+  return 3;
+}
+
+function minimumWeekdayGap(weekdays: number[]): number {
+  if (weekdays.length <= 1) {
+    return 7;
+  }
+  const sorted = [...weekdays].sort((a, b) => a - b);
+  let minGap = 7;
+  for (let index = 0; index < sorted.length; index += 1) {
+    const current = sorted[index]!;
+    const next = sorted[(index + 1) % sorted.length]!;
+    const gap = index === sorted.length - 1 ? next + 7 - current : next - current;
+    if (gap > 0 && gap < minGap) {
+      minGap = gap;
+    }
+  }
+  return minGap;
+}
+
+/**
+ * Cadence-sized stand-in for `resolveDefaultLeadDays` when the editor has no
+ * concrete next due yet: 0 under 7 days, 1 day for 7–13, 3 days at 14+.
+ */
+export function estimateSmartLeadDays(recurrence: Recurrence): number {
+  switch (recurrence.type) {
+    case 'interval_after_completion': {
+      switch (recurrence.unit) {
+        case 'days':
+          return leadDaysForCadenceSpan(recurrence.every);
+        case 'weeks':
+          return leadDaysForCadenceSpan(recurrence.every * 7);
+        case 'months':
+          return leadDaysForCadenceSpan(recurrence.every * 30);
+        default: {
+          const unsupported: never = recurrence.unit;
+          throw new Error(`Unsupported recurrence unit: ${String(unsupported)}`);
+        }
+      }
+    }
+    case 'cron': {
+      const parsed = parseStandardCron(recurrence.expression);
+      if (!parsed) {
+        return 3;
+      }
+      switch (parsed.mode) {
+        case 'daily':
+          return 0;
+        case 'weekly':
+          return leadDaysForCadenceSpan(minimumWeekdayGap(parsed.weekdays));
+        case 'monthly':
+          return 3;
+        default: {
+          const unsupported: never = parsed.mode;
+          throw new Error(`Unsupported cadence: ${String(unsupported)}`);
+        }
+      }
+    }
+    default: {
+      const unsupported: never = recurrence;
+      throw new Error(`Unsupported recurrence type: ${String(unsupported)}`);
+    }
+  }
+}
+
+export function describeSmartLeadDays(recurrence: Recurrence | null): string {
+  if (recurrence === null) {
+    return 'Smart default applies once a repeat schedule is set';
+  }
+  const days = estimateSmartLeadDays(recurrence);
+  if (days === 0) {
+    return 'Smart default: reappear on the due date';
+  }
+  if (days === 1) {
+    return 'Smart default: reappear 1 day before due';
+  }
+  return `Smart default: reappear ${days} days before due`;
+}
+
+function attachStoredNudges(
+  state: RecurrenceFormState,
+  recurrence: Recurrence,
+): RecurrenceFormState {
+  return {
+    ...state,
+    autoDefer: recurrence.autoDefer !== false,
+    leadDaysInput: recurrence.leadDays === undefined ? '' : String(recurrence.leadDays),
+  };
+}
+
+function recurrenceNudgeFields(state: RecurrenceFormState): {
+  autoDefer?: false;
+  leadDays?: number;
+} {
+  const fields: { autoDefer?: false; leadDays?: number } = {};
+  if (!state.autoDefer) {
+    fields.autoDefer = false;
+  }
+  const leadDays = parseLeadDaysInput(state.leadDaysInput);
+  if (typeof leadDays === 'number') {
+    fields.leadDays = leadDays;
+  }
+  return fields;
+}
+
+function nudgesEqual(a: Recurrence, b: Recurrence): boolean {
+  const sameAutoDefer = (a.autoDefer !== false) === (b.autoDefer !== false);
+  return sameAutoDefer && (a.leadDays ?? null) === (b.leadDays ?? null);
 }
 
 function pad2(n: number): string {
@@ -145,39 +283,49 @@ export function recurrenceToFormState(
   }
 
   if (recurrence.type === 'interval_after_completion') {
-    return {
-      ...base,
-      mode: 'interval_after_completion',
-      intervalEvery: recurrence.every,
-      intervalUnit: recurrence.unit,
-      timezone: recurrence.timezone ?? '',
-    };
+    return attachStoredNudges(
+      {
+        ...base,
+        mode: 'interval_after_completion',
+        intervalEvery: recurrence.every,
+        intervalUnit: recurrence.unit,
+        timezone: recurrence.timezone ?? '',
+      },
+      recurrence,
+    );
   }
 
   const parsed = parseStandardCron(recurrence.expression);
   if (parsed) {
-    return {
-      ...base,
-      mode: parsed.mode,
-      time: `${pad2(parsed.hour)}:${pad2(parsed.minute)}`,
-      weekdays: parsed.weekdays,
-      dayOfMonth: parsed.dayOfMonth,
-      cronExpression: recurrence.expression,
-      timezone: recurrence.timezone ?? '',
-    };
+    return attachStoredNudges(
+      {
+        ...base,
+        mode: parsed.mode,
+        time: `${pad2(parsed.hour)}:${pad2(parsed.minute)}`,
+        weekdays: parsed.weekdays,
+        dayOfMonth: parsed.dayOfMonth,
+        cronExpression: recurrence.expression,
+        timezone: recurrence.timezone ?? '',
+      },
+      recurrence,
+    );
   }
 
-  return {
-    ...base,
-    mode: 'cron',
-    cronExpression: recurrence.expression,
-    timezone: recurrence.timezone ?? '',
-  };
+  return attachStoredNudges(
+    {
+      ...base,
+      mode: 'cron',
+      cronExpression: recurrence.expression,
+      timezone: recurrence.timezone ?? '',
+    },
+    recurrence,
+  );
 }
 
 export function formStateToRecurrence(state: RecurrenceFormState): Recurrence | null {
   const tz = state.timezone.trim();
   const tzField = tz.length > 0 ? { timezone: tz } : {};
+  const nudgeFields = recurrenceNudgeFields(state);
   const { hour, minute } = parseTimeParts(state.time);
 
   switch (state.mode) {
@@ -188,6 +336,7 @@ export function formStateToRecurrence(state: RecurrenceFormState): Recurrence | 
         type: 'cron',
         expression: `${minute} ${hour} * * *`,
         ...tzField,
+        ...nudgeFields,
       };
     case 'weekly': {
       const days =
@@ -198,6 +347,7 @@ export function formStateToRecurrence(state: RecurrenceFormState): Recurrence | 
         type: 'cron',
         expression: `${minute} ${hour} * * ${days.join(',')}`,
         ...tzField,
+        ...nudgeFields,
       };
     }
     case 'monthly': {
@@ -206,6 +356,7 @@ export function formStateToRecurrence(state: RecurrenceFormState): Recurrence | 
         type: 'cron',
         expression: `${minute} ${hour} ${dom} * *`,
         ...tzField,
+        ...nudgeFields,
       };
     }
     case 'interval_after_completion':
@@ -214,13 +365,19 @@ export function formStateToRecurrence(state: RecurrenceFormState): Recurrence | 
         every: Math.max(1, Math.min(3650, Math.floor(Number(state.intervalEvery) || 1))),
         unit: state.intervalUnit,
         ...tzField,
+        ...nudgeFields,
       };
     case 'cron':
       return {
         type: 'cron',
         expression: state.cronExpression.trim(),
         ...tzField,
+        ...nudgeFields,
       };
+    default: {
+      const unsupported: never = state.mode;
+      throw new Error(`Unsupported recurrence mode: ${String(unsupported)}`);
+    }
   }
 }
 
@@ -268,10 +425,10 @@ export function recurrencesEqual(a: Recurrence | null, b: Recurrence | null): bo
     return false;
   }
   if (a.type === 'cron' && b.type === 'cron') {
-    return a.expression.trim() === b.expression.trim();
+    return a.expression.trim() === b.expression.trim() && nudgesEqual(a, b);
   }
   if (a.type === 'interval_after_completion' && b.type === 'interval_after_completion') {
-    return a.every === b.every && a.unit === b.unit;
+    return a.every === b.every && a.unit === b.unit && nudgesEqual(a, b);
   }
   return false;
 }

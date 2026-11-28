@@ -1,14 +1,26 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { User } from '@agent-kanban/shared';
+import { Link } from 'react-router-dom';
 import { CardRow } from '../components/CardRow.js';
 import { FilterBar } from '../components/FilterBar.js';
 import { useFilteredCards } from '../hooks/useFilteredCards.js';
+import { fetchRecurringSchedule } from '../lib/api.js';
+import { useAppAuth } from '../lib/auth.js';
+import { countSnoozedCards } from '../lib/scheduleUi.js';
 
 const TOP_TODO_LIMIT = 5;
 const TODO_STATUSES = ['todo'] as const;
 
 export function TodoPage({ user }: { user: User }) {
   const [showMore, setShowMore] = useState(false);
+  const { getAccessToken } = useAppAuth();
+  const scheduleQuery = useQuery({
+    queryKey: ['schedule', 'snooze-count'],
+    queryFn: ({ signal }) => fetchRecurringSchedule(getAccessToken, 60, signal),
+    staleTime: 15_000,
+  });
+  const snoozedCount = scheduleQuery.data === undefined ? 0 : countSnoozedCards(scheduleQuery.data);
   const {
     searchText,
     setSearchText,
@@ -47,6 +59,15 @@ export function TodoPage({ user }: { user: User }) {
           </span>
         ) : null}
       </div>
+
+      {snoozedCount > 0 ? (
+        <Link
+          to="/schedule"
+          className="inline-flex min-h-11 items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 hover:border-slate-300 hover:text-slate-900"
+        >
+          {snoozedCount} snoozed in Schedule →
+        </Link>
+      ) : null}
 
       <FilterBar
         searchText={searchText}

@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { APP_NAME, type User } from '@agent-kanban/shared';
-import { CheckCircle2, Flame, ListTodo, Plus, Settings, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  Flame,
+  ListTodo,
+  Plus,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { fetchHouseholdUsers } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
 import { ActivePage } from '../pages/ActivePage.js';
 import { CardDetailPage } from '../pages/CardDetailPage.js';
 import { DonePage } from '../pages/DonePage.js';
+import { SchedulePage } from '../pages/SchedulePage.js';
 import { SettingsPage } from '../pages/SettingsPage.js';
 import { TodoPage } from '../pages/TodoPage.js';
 import { OfflineBanner } from './OfflineBanner.js';
@@ -23,6 +32,7 @@ interface TabConfig {
 const TABS: readonly TabConfig[] = [
   { to: '/', label: 'To-Do', title: 'To-Do', icon: ListTodo },
   { to: '/active', label: 'Active', title: 'Active', icon: Flame },
+  { to: '/schedule', label: 'Schedule', title: 'Schedule', icon: CalendarDays },
   { to: '/done', label: 'Done', title: 'Done', icon: CheckCircle2 },
   { to: '/settings', label: 'Settings', title: 'Settings', icon: Settings },
 ] as const;
@@ -100,6 +110,7 @@ export function AppShell({ user }: AppShellProps) {
         <Routes>
           <Route path="/" element={<TodoPage user={user} />} />
           <Route path="/active" element={<ActivePage user={user} />} />
+          <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/done" element={<DonePage user={user} />} />
           <Route path="/settings" element={<SettingsPage user={user} />} />
           <Route path="/cards/:id" element={<CardDetailPage user={user} />} />
@@ -133,17 +144,17 @@ export function AppShell({ user }: AppShellProps) {
         aria-label="Primary"
         className="fixed right-0 bottom-0 left-0 z-20 border-t border-slate-200 bg-white/95 pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] backdrop-blur"
       >
-        <ul className="mx-auto grid w-full max-w-xl grid-cols-4">
+        <ul className="mx-auto grid w-full max-w-xl grid-cols-5">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             return (
-              <li key={tab.to}>
+              <li key={tab.to} className="min-w-0">
                 <NavLink
                   to={tab.to}
                   end={tab.to === '/'}
                   className={({ isActive }) =>
                     [
-                      'flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
+                      'flex min-h-14 w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[11px] leading-tight font-semibold transition',
                       isActive
                         ? 'border-t-2 border-sky-600 text-sky-700'
                         : 'border-t-2 border-transparent text-slate-600 hover:text-slate-900',
@@ -151,7 +162,7 @@ export function AppShell({ user }: AppShellProps) {
                   }
                 >
                   <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                  <span>{tab.label}</span>
+                  <span className="max-w-full">{tab.label}</span>
                 </NavLink>
               </li>
             );

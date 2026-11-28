@@ -14,7 +14,7 @@
     "hygiene:check": "node scripts/check-hygiene.mjs",
     "build": "pnpm -r build",
     "test": "vitest run && pnpm -r --if-present test",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/playwright-test.mjs",
     "test:emulator-all": "pnpm --filter @agent-kanban/api test:rules && pnpm --filter @agent-kanban/api test:integration && pnpm exec tsx scripts/seed-emulator.ts --reset && pnpm test:e2e",
     "ci:verify": "pnpm hygiene:check && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && firebase emulators:exec --project demo-agent-kanban --only firestore,storage,functions,hosting \"pnpm run test:emulator-all\""
   },

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeRecurrence,
+  describeSmartLeadDays,
   formStateToRecurrence,
   recurrenceToFormState,
+  recurrencesEqual,
 } from '../lib/recurrenceUi.js';
 
 describe('recurrenceUi helpers', () => {
@@ -64,5 +66,53 @@ describe('recurrenceUi helpers', () => {
       cronExpression: '0 8 1 */3 *',
     });
     expect(describeRecurrence(exotic)).toBe('Custom schedule (0 8 1 */3 *)');
+  });
+
+  it('round-trips auto-hide and explicit lead days, and describes the smart default', () => {
+    const base = recurrenceToFormState(null);
+    expect(base.autoDefer).toBe(true);
+    expect(base.leadDaysInput).toBe('');
+
+    const weekly = formStateToRecurrence({
+      ...base,
+      mode: 'weekly',
+      time: '09:00',
+      weekdays: [1],
+    });
+    expect(weekly).toEqual({ type: 'cron', expression: '0 9 * * 1' });
+    expect(describeSmartLeadDays(weekly)).toBe('Smart default: reappear 1 day before due');
+    expect(describeSmartLeadDays({ type: 'cron', expression: '30 8 * * *' })).toBe(
+      'Smart default: reappear on the due date',
+    );
+    expect(
+      describeSmartLeadDays({ type: 'interval_after_completion', every: 30, unit: 'days' }),
+    ).toBe('Smart default: reappear 3 days before due');
+
+    const hidden = formStateToRecurrence({
+      ...base,
+      mode: 'weekly',
+      time: '09:00',
+      weekdays: [1],
+      autoDefer: false,
+      leadDaysInput: '2',
+    });
+    expect(hidden).toEqual({
+      type: 'cron',
+      expression: '0 9 * * 1',
+      autoDefer: false,
+      leadDays: 2,
+    });
+    expect(recurrenceToFormState(hidden)).toMatchObject({
+      mode: 'weekly',
+      autoDefer: false,
+      leadDaysInput: '2',
+    });
+    expect(
+      recurrencesEqual(
+        { type: 'cron', expression: '0 9 * * 1' },
+        { type: 'cron', expression: '0 9 * * 1', autoDefer: true },
+      ),
+    ).toBe(true);
+    expect(recurrencesEqual(weekly, hidden)).toBe(false);
   });
 });

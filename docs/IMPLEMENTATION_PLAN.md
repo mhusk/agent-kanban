@@ -88,7 +88,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M6.1** — Shared schemas & helpers: `pinned`, `deferUntil`, `lastCompletedAt`, recurrence `autoDefer`/`leadDays`, `projectNextOccurrences` & v1.1 event types
 - [x] **M6.2** — API, MCP & cron: pinned-first `To-Do` sort, deferred filtering, recurring auto-defer, `POST /api/cards/:id/rescore`, `GET /api/cards/recurring`, `dueScanner` wake-up & Firestore index
 - [ ] **M6.3 `[HUMAN]`** — Cloud deploy-and-verify gate (deploy Firestore `deferUntil` index + updated `scanDueCards` cron & live smoke verification)
-- [ ] **M6.4** — PWA 5th `Schedule` tab (`Upcoming` timeline + `All Recurring` master list + snoozed cards), recurrence `leadDays` editor, Pin & Request AI Rescore UI
+- [x] **M6.4** — PWA 5th `Schedule` tab (`Upcoming` timeline + `All Recurring` master list + snoozed cards), recurrence `leadDays` editor, Pin & Request AI Rescore UI
 
 ### Milestone 7: Multi-Select & Hardened Bulk Actions (v1.1)
 - [ ] **M7.1** — Hardened bulk API & MCP: assignees/`deferUntil`/`pinned`/`rescoreRequested`, recurring-safe `POST /api/cards/bulk/complete` & visibility-grouped `cards.bulk_updated` batch events
@@ -1057,7 +1057,7 @@ pnpm hygiene:check
 
 ---
 
-### - [ ] Step M6.4: PWA 5th `Schedule` tab, recurrence `leadDays` editor, Snooze, Pin & Request AI Rescore UI
+### - [x] Step M6.4: PWA 5th `Schedule` tab, recurrence `leadDays` editor, Snooze, Pin & Request AI Rescore UI
 
 **Goal:** Give household humans full visibility into upcoming recurring and snoozed tasks plus zero-friction priority steering in the PWA.
 

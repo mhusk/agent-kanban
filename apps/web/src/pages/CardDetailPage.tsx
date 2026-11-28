@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Card, CardStatus, RecurrenceUnit, User } from '@agent-kanban/shared';
+import {
+  isCardDeferred,
+  type Card,
+  type CardStatus,
+  type RecurrenceUnit,
+  type User,
+} from '@agent-kanban/shared';
 import { RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AttachmentSection } from '../components/AttachmentSection.js';
@@ -24,7 +30,10 @@ import {
   fetchCardComments,
   fetchHouseholdUsers,
   isApiError,
+  rescoreCard,
   updateCard,
+  updateCardDeferUntil,
+  updateCardPinned,
   updateChecklistItem,
 } from '../lib/api.js';
 import { useAppAuth } from '../lib/auth.js';
@@ -34,12 +43,15 @@ import {
   WEEKDAY_OPTIONS,
   createDefaultRecurrenceFormState,
   describeRecurrence,
+  describeSmartLeadDays,
   formStateToRecurrence,
+  parseLeadDaysInput,
   recurrenceToFormState,
   recurrencesEqual,
   type RecurrenceFormState,
   type RecurrenceMode,
 } from '../lib/recurrenceUi.js';
+import { buildSnoozePresets, formatScheduleInstant } from '../lib/scheduleUi.js';
 
 function renderCommentText(text: string, knownHandles: ReadonlySet<string>) {
   const parts = text.split(/(?<![A-Za-z0-9._%+@-])(@[A-Za-z0-9][A-Za-z0-9_-]*)/g);
@@ -96,6 +108,105 @@ function formatDateTime(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(ms));
+}
+
+function SnoozeSection({
+  card,
+  customSnooze,
+  onCustomSnoozeChange,
+  pending,
+  onSnooze,
+}: {
+  card: Card;
+  customSnooze: string;
+  onCustomSnoozeChange: (value: string) => void;
+  pending: boolean;
+  onSnooze: (deferUntil: string | null) => void;
+}) {
+  const deferred = card.deferUntil !== null && isCardDeferred(card, new Date());
+  const presets = buildSnoozePresets(new Date());
+
+  const applyCustomSnooze = () => {
+    const trimmed = customSnooze.trim();
+    if (!trimmed) {
+      return;
+    }
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+      return;
+    }
+    onSnooze(parsed.toISOString());
+  };
+
+  return (
+    <section
+      aria-labelledby="snooze-heading"
+      className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2
+          id="snooze-heading"
+          className="text-sm font-semibold tracking-wide text-slate-600 uppercase"
+        >
+          Snooze / Defer until
+        </h2>
+        {deferred && card.deferUntil ? (
+          <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+            Snoozed until {formatDateTime(card.deferUntil)}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-500">Showing on To-Do</span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {presets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            disabled={pending}
+            onClick={() => onSnooze(preset.deferUntil)}
+            className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
+          >
+            {preset.label}
+          </button>
+        ))}
+        {deferred ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => onSnooze(null)}
+            className="min-h-11 rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+          >
+            {pending ? 'Saving…' : 'Wake now'}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="detail-snooze-until" className="block text-xs text-slate-600">
+            Pick a date and time
+          </label>
+          <input
+            id="detail-snooze-until"
+            type="datetime-local"
+            value={customSnooze}
+            onChange={(event) => onCustomSnoozeChange(event.target.value)}
+            className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          disabled={pending || customSnooze.trim().length === 0}
+          onClick={applyCustomSnooze}
+          className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
+        >
+          Snooze
+        </button>
+      </div>
+    </section>
+  );
 }
 
 export function CardDetailPage({ user }: { user: User }) {
@@ -159,6 +270,7 @@ export function CardDetailPage({ user }: { user: User }) {
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [newLinkLabel, setNewLinkLabel] = useState('');
   const [commentText, setCommentText] = useState('');
+  const [customSnooze, setCustomSnooze] = useState('');
 
   useEffect(() => {
     if (!card) {
@@ -255,6 +367,62 @@ export function CardDetailPage({ user }: { user: User }) {
     onError: handleMutationError,
   });
 
+  const pinMutation = useMutation({
+    mutationFn: (pinned: boolean) => {
+      if (!card) {
+        throw new Error('Card not loaded');
+      }
+      return updateCardPinned(getAccessToken, card.id, pinned, card.updatedAt);
+    },
+    onSuccess: async (updatedCard, pinned) => {
+      queryClient.setQueryData(['card', cardId], updatedCard);
+      setActionError(null);
+      setEditMessage(pinned ? 'Pinned to the top of To-Do.' : 'Unpinned.');
+      await invalidateCardData();
+    },
+    onError: handleMutationError,
+  });
+
+  const rescoreMutation = useMutation({
+    mutationFn: () => {
+      if (!card) {
+        throw new Error('Card not loaded');
+      }
+      return rescoreCard(getAccessToken, card.id, { ifUpdatedAt: card.updatedAt });
+    },
+    onSuccess: async (updatedCard) => {
+      queryClient.setQueryData(['card', cardId], updatedCard);
+      setActionError(null);
+      setEditMessage('AI rescore requested. The priority score was cleared.');
+      await invalidateCardData();
+    },
+    onError: handleMutationError,
+  });
+
+  const snoozeMutation = useMutation({
+    mutationFn: (deferUntil: string | null) => {
+      if (!card) {
+        throw new Error('Card not loaded');
+      }
+      return updateCardDeferUntil(getAccessToken, card.id, deferUntil, card.updatedAt);
+    },
+    onSuccess: async (updatedCard, deferUntil) => {
+      queryClient.setQueryData(['card', cardId], updatedCard);
+      setActionError(null);
+      setCustomSnooze('');
+      setEditMessage(
+        deferUntil === null
+          ? 'Awake. This card is back on To-Do.'
+          : `Snoozed until ${formatScheduleInstant(
+              deferUntil,
+              Intl.DateTimeFormat().resolvedOptions().timeZone,
+            )}.`,
+      );
+      await invalidateCardData();
+    },
+    onError: handleMutationError,
+  });
+
   const saveCardMutation = useMutation({
     mutationFn: async () => {
       if (!card) {
@@ -266,6 +434,9 @@ export function CardDetailPage({ user }: { user: User }) {
       }
 
       const due = fromDueInputValue(dueInput, dueHasTime);
+      if (parseLeadDaysInput(recurrenceForm.leadDaysInput) === 'invalid') {
+        throw new Error('Reappear days must be a whole number from 0 to 365');
+      }
       const recurrence = formStateToRecurrence(recurrenceForm);
 
       return updateCard(getAccessToken, card.id, {
@@ -610,8 +781,40 @@ export function CardDetailPage({ user }: { user: User }) {
           >
             {card.archived ? 'Unarchive' : 'Archive'}
           </button>
+
+          <button
+            type="button"
+            aria-pressed={card.pinned}
+            disabled={pinMutation.isPending}
+            onClick={() => pinMutation.mutate(!card.pinned)}
+            className={[
+              'min-h-11 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60',
+              card.pinned
+                ? 'border border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                : 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-100',
+            ].join(' ')}
+          >
+            {card.pinned ? 'Unpin' : 'Pin'}
+          </button>
+
+          <button
+            type="button"
+            disabled={rescoreMutation.isPending}
+            onClick={() => rescoreMutation.mutate()}
+            className="min-h-11 rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-60"
+          >
+            {rescoreMutation.isPending ? 'Requesting…' : 'Request AI Rescore'}
+          </button>
         </div>
       </div>
+
+      <SnoozeSection
+        card={card}
+        customSnooze={customSnooze}
+        onCustomSnoozeChange={setCustomSnooze}
+        pending={snoozeMutation.isPending}
+        onSnooze={(deferUntil) => snoozeMutation.mutate(deferUntil)}
+      />
 
       {/* Editable details */}
       <form
@@ -954,6 +1157,49 @@ export function CardDetailPage({ user }: { user: User }) {
                 placeholder="0 9 * * 6"
                 className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 font-mono text-sm"
               />
+            </div>
+          ) : null}
+
+          {recurrenceForm.mode !== 'none' ? (
+            <div className="space-y-2 border-t border-slate-200 pt-3">
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={recurrenceForm.autoDefer}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({ ...prev, autoDefer: event.target.checked }))
+                  }
+                  className="h-4 w-4 rounded border-slate-300 text-sky-600"
+                />
+                Auto-hide until close to due
+              </label>
+              <div>
+                <label htmlFor="detail-lead-days" className="block text-xs text-slate-600">
+                  Reappear N days before due
+                </label>
+                <input
+                  id="detail-lead-days"
+                  type="number"
+                  min={0}
+                  max={365}
+                  inputMode="numeric"
+                  placeholder="Smart default"
+                  value={recurrenceForm.leadDaysInput}
+                  onChange={(event) =>
+                    setRecurrenceForm((prev) => ({ ...prev, leadDaysInput: event.target.value }))
+                  }
+                  className="mt-1 min-h-11 w-full max-w-44 rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  {parseLeadDaysInput(recurrenceForm.leadDaysInput) === 'invalid'
+                    ? 'Enter a whole number from 0 to 365, or leave blank for the smart default.'
+                    : recurrenceForm.leadDaysInput.trim().length > 0
+                      ? `Custom: reappear ${recurrenceForm.leadDaysInput.trim()} days before due.`
+                      : describeSmartLeadDays(
+                          formStateToRecurrence({ ...recurrenceForm, leadDaysInput: '' }),
+                        )}
+                </p>
+              </div>
             </div>
           ) : null}
 

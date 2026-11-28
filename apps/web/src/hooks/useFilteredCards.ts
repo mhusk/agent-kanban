@@ -8,6 +8,7 @@ import { TAGS_QUERY_KEY, cardMatchesSelectedTag, collectAvailableTags } from '..
 export function invalidateCardsAndTags(queryClient: QueryClient): Promise<void> {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ['cards'] }),
+    queryClient.invalidateQueries({ queryKey: ['schedule'] }),
     queryClient.invalidateQueries({ queryKey: TAGS_QUERY_KEY }),
   ]).then(() => undefined);
 }
