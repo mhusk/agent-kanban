@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    # Markdown-only pushes do not start this workflow, so neither
+    # "Verify before deploy" nor "Deploy to Firebase" runs. ci.yml has no
+    # path filter and still checks docs pull requests and pushes.
+    # workflow_dispatch is not filtered and still deploys.
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 permissions:
