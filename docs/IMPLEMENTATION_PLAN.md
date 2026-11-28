@@ -110,9 +110,9 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 
 ## Feature ideas
 
-Not implementation steps and not ready to build. The plan for each idea lives in `docs/features/`. This file only links to that path.
+Not milestone steps. The plan for each idea lives in `docs/features/`. This file only links to that path and does not duplicate the phases.
 
-- [`docs/features/trello-json-card-import.md`](features/trello-json-card-import.md) — the idea is not defined yet.
+- [`docs/features/trello-json-card-import.md`](features/trello-json-card-import.md) — paste one Trello card Export JSON into New card. Copies title, description, tags, due date, Trello link, checklists, and status from the list name.
 - [`docs/features/readable-schedule-cadence.md`](features/readable-schedule-cadence.md) — specified. The Schedule tab shows the same cadence sentences as the card editor. The API `cadence` field stays the raw rule.
 
 ---
