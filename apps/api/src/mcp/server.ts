@@ -12,6 +12,7 @@ import {
   NoteSchema,
   RecurrenceSchema,
   SHARED_VERSION,
+  SmartQueryTypeSchema,
   SubscriptionFiltersSchema,
   WebhookAuthTypeSchema,
 } from '@agent-kanban/shared';
@@ -26,6 +27,8 @@ import {
   listCardActivityHandler,
   listCardsHandler,
   listGlobalActivityHandler,
+  listRecurringCardsHandler,
+  rescoreCardHandler,
   searchCardsHandler,
   updateCardHandler,
 } from '../handlers/cards.js';
@@ -166,9 +169,28 @@ export function createMcpServer(
         updatedSince: z.string().optional(),
         archived: z.enum(['true', 'false', 'all']).optional(),
         sort: z.enum(['priority', 'updated']).optional(),
+        includeDeferred: z.enum(['true', 'false']).optional(),
+        hasRecurrence: z.enum(['true', 'false']).optional(),
       },
     },
     async (args) => runTool(() => listCardsHandler(agentAuth(), args)),
+  );
+
+  server.registerTool(
+    'list_recurring_cards',
+    {
+      description:
+        'List visible non-archived recurring cards with projected occurrences, cadence, and effective lead days, plus currently deferred non-recurring cards.',
+      inputSchema: {
+        horizonDays: z.number().int().min(1).max(366).optional(),
+      },
+    },
+    async (args) =>
+      runTool(() =>
+        listRecurringCardsHandler(agentAuth(), args, {
+          householdTimezone: options.householdTimezone,
+        }),
+      ),
   );
 
   // 2. get_card
@@ -242,9 +264,9 @@ export function createMcpServer(
     'smart_query_cards',
     {
       description:
-        'Run a smart query (`overdue_or_due_within_days` or `stale_in_todo_days`) on visible cards.',
+        'Run a smart query (`overdue_or_due_within_days`, `stale_in_todo_days`, or `upcoming_recurring`) on visible cards.',
       inputSchema: {
-        query: z.enum(['overdue_or_due_within_days', 'stale_in_todo_days']),
+        query: SmartQueryTypeSchema,
         days: z.number().int().min(0).max(3650).optional(),
       },
     },
@@ -293,6 +315,8 @@ export function createMcpServer(
         dueFirm: z.boolean().optional(),
         dueHasTime: z.boolean().optional(),
         recurrence: RecurrenceSchema.nullable().optional(),
+        pinned: z.boolean().optional(),
+        deferUntil: IsoDateTimeSchema.nullable().optional(),
         links: z
           .array(z.object({ url: z.string().url(), label: z.string().optional() }))
           .optional(),
@@ -330,6 +354,8 @@ export function createMcpServer(
         dueFirm: z.boolean().optional(),
         dueHasTime: z.boolean().optional(),
         recurrence: RecurrenceSchema.nullable().optional(),
+        pinned: z.boolean().optional(),
+        deferUntil: IsoDateTimeSchema.nullable().optional(),
         archived: z.boolean().optional(),
         trelloUrl: z.string().url().nullable().optional(),
         trelloShortLink: z.string().nullable().optional(),
@@ -378,6 +404,22 @@ export function createMcpServer(
           householdTimezone: options.householdTimezone,
         }),
       ),
+  );
+
+  server.registerTool(
+    'request_card_rescore',
+    {
+      description:
+        'Clear priorityScore and priorityReason and log a rescore request. Human callers emit card.rescore_requested; agent callers do not.',
+      inputSchema: {
+        cardId: EntityIdSchema,
+        ifUpdatedAt: IsoDateTimeSchema.optional(),
+        note: NoteSchema.optional(),
+        agentName: z.string().trim().min(1).max(120).optional(),
+      },
+    },
+    async ({ cardId, agentName, ...body }) =>
+      runTool(() => rescoreCardHandler(agentAuth(agentName), cardId, body)),
   );
 
   // 12. archive_card

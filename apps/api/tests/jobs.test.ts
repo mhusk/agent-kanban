@@ -118,6 +118,7 @@ describe('Scheduled jobs: due_soon/overdue scanner & daily maintenance (Emulator
           every: 2,
           unit: 'days',
           timezone: 'America/New_York',
+          autoDefer: false,
         },
       },
     });
@@ -207,6 +208,81 @@ describe('Scheduled jobs: due_soon/overdue scanner & daily maintenance (Emulator
       (e) => e.cardId === doneCardId && (e.type === 'card.due_soon' || e.type === 'card.overdue'),
     );
     expect(doneDueEvents).toHaveLength(0);
+  });
+
+  it('wakes elapsed snoozes once, skips due_soon while deferred, and still emits overdue', async () => {
+    const scanNow = new Date('2026-11-20T15:00:00.000Z');
+
+    const elapsed = await apiRequest<{ card: Card }>('/api/cards', {
+      method: 'POST',
+      token: alexToken,
+      body: {
+        title: 'Snooze elapsed fern watering',
+        due: '2027-01-15T00:00:00.000Z',
+        dueHasTime: false,
+        deferUntil: '2026-11-01T00:00:00.000Z',
+      },
+    });
+    expect(elapsed.status).toBe(201);
+
+    const stillSnoozed = await apiRequest<{ card: Card }>('/api/cards', {
+      method: 'POST',
+      token: alexToken,
+      body: {
+        title: 'Snoozed until next month',
+        due: '2026-11-21T00:00:00.000Z',
+        dueHasTime: false,
+        deferUntil: '2026-12-15T12:00:00.000Z',
+      },
+    });
+    expect(stillSnoozed.status).toBe(201);
+
+    const deferredOverdue = await apiRequest<{ card: Card }>('/api/cards', {
+      method: 'POST',
+      token: alexToken,
+      body: {
+        title: 'Deferred but already overdue',
+        due: '2026-11-01T12:00:00.000Z',
+        dueHasTime: true,
+        deferUntil: '2026-12-15T12:00:00.000Z',
+      },
+    });
+    expect(deferredOverdue.status).toBe(201);
+
+    const first = await runDueScanner(scanNow, 'America/New_York', { db });
+    expect(first.unsnoozedEmitted).toBe(1);
+
+    const woken = await db.collection('cards').doc(elapsed.data.card.id).get();
+    expect(woken.data()?.deferUntil).toBeNull();
+    expect(woken.data()?.enteredStatusAt).toBe(scanNow.toISOString());
+    expect(woken.data()?.updatedAt).toBe(scanNow.toISOString());
+
+    const still = await db.collection('cards').doc(stillSnoozed.data.card.id).get();
+    expect(still.data()?.deferUntil).toBe('2026-12-15T12:00:00.000Z');
+
+    const second = await runDueScanner(scanNow, 'America/New_York', { db });
+    expect(second.unsnoozedEmitted).toBe(0);
+
+    const eventsSnap = await db.collection('events').where('type', '==', 'card.unsnoozed').get();
+    const unsnoozed = eventsSnap.docs.map((doc) => doc.data() as Event);
+    const elapsedWakes = unsnoozed.filter((event) => event.cardId === elapsed.data.card.id);
+    expect(elapsedWakes).toHaveLength(1);
+    expect(elapsedWakes[0]!.actor.actorType).toBe('system');
+    expect(elapsedWakes[0]!.payload.previousDeferUntil).toBe('2026-11-01T00:00:00.000Z');
+
+    const snoozedDueSoon = (
+      await db.collection('events').where('cardId', '==', stillSnoozed.data.card.id).get()
+    ).docs
+      .map((doc) => doc.data() as Event)
+      .filter((event) => event.type === 'card.due_soon');
+    expect(snoozedDueSoon).toHaveLength(0);
+
+    const overdueEvents = (
+      await db.collection('events').where('cardId', '==', deferredOverdue.data.card.id).get()
+    ).docs
+      .map((doc) => doc.data() as Event)
+      .filter((event) => event.type === 'card.overdue');
+    expect(overdueEvents).toHaveLength(1);
   });
 
   it('auto-archives 31-day-old non-recurring done cards, prunes 31-day-old events & completed deliveries, and triggers backup when configured', async () => {

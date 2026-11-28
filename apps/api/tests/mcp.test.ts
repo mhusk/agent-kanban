@@ -127,14 +127,15 @@ describe('Stateless Streamable HTTP /mcp & RFC 9728 OAuth metadata (Emulator)', 
     expect(deleteRes.status).toBe(405);
   });
 
-  it('authenticates via JWT (OAuth path) and API key, lists 21 tools, enforces visibility, and stamps actorType: agent', async () => {
+  it('authenticates via JWT (OAuth path) and API key, lists 23 tools, enforces visibility, and stamps actorType: agent', async () => {
     // 1. JWT path (Alex)
     const alexClient = await connectMcpClient(alexToken);
     const toolsList = await alexClient.listTools();
     const toolNames = toolsList.tools.map((t) => t.name);
-    expect(toolNames).toHaveLength(21);
+    expect(toolNames).toHaveLength(23);
     for (const expected of [
       'list_cards',
+      'list_recurring_cards',
       'list_tags',
       'get_card',
       'get_card_by_trello',
@@ -146,6 +147,7 @@ describe('Stateless Streamable HTTP /mcp & RFC 9728 OAuth metadata (Emulator)', 
       'update_card',
       'change_card_status',
       'complete_card',
+      'request_card_rescore',
       'archive_card',
       'bulk_update_priorities',
       'bulk_update_cards',
@@ -253,5 +255,97 @@ describe('Stateless Streamable HTTP /mcp & RFC 9728 OAuth metadata (Emulator)', 
     expect(samAct?.platform).toBe('MCP Bot');
 
     await samClient.close();
+  });
+
+  it('lists recurring schedules and suppresses card.rescore_requested for MCP agent callers', async () => {
+    const alexClient = await connectMcpClient(alexToken);
+    const created = await alexClient.callTool({
+      name: 'create_card',
+      arguments: {
+        title: 'MCP snoozed fern',
+        pinned: true,
+        deferUntil: '2027-03-01T15:00:00.000Z',
+        priorityScore: 70,
+        priorityReason: 'Waiting on spring',
+        status: 'todo',
+        assignedUserIds: ['user-alex'],
+      },
+    });
+    const card = parseToolText<{ card: Card }>(created).card;
+    expect(card.pinned).toBe(true);
+    expect(card.deferUntil).toBe('2027-03-01T15:00:00.000Z');
+
+    const hidden = await alexClient.callTool({
+      name: 'list_cards',
+      arguments: { status: 'todo', includeDeferred: 'false' },
+    });
+    expect(parseToolText<{ cards: Card[] }>(hidden).cards.some((item) => item.id === card.id)).toBe(
+      false,
+    );
+
+    const shown = await alexClient.callTool({
+      name: 'list_cards',
+      arguments: { status: 'todo', includeDeferred: 'true' },
+    });
+    expect(parseToolText<{ cards: Card[] }>(shown).cards.some((item) => item.id === card.id)).toBe(
+      true,
+    );
+
+    const recurring = await alexClient.callTool({
+      name: 'create_card',
+      arguments: {
+        title: 'MCP weekly plant check',
+        recurrence: {
+          type: 'interval_after_completion',
+          every: 7,
+          unit: 'days',
+          timezone: 'UTC',
+          leadDays: 1,
+        },
+        due: '2026-12-01T00:00:00.000Z',
+        assignedUserIds: ['user-alex'],
+      },
+    });
+    const recurringCard = parseToolText<{ card: Card }>(recurring).card;
+
+    const schedule = await alexClient.callTool({
+      name: 'list_recurring_cards',
+      arguments: { horizonDays: 90 },
+    });
+    const scheduleBody = parseToolText<{
+      horizonDays: number;
+      recurring: Array<{ card: Card; cadence: string; effectiveLeadDays: number }>;
+      deferredCards: Card[];
+    }>(schedule);
+    expect(scheduleBody.horizonDays).toBe(90);
+    const listed = scheduleBody.recurring.find((entry) => entry.card.id === recurringCard.id);
+    expect(listed?.cadence).toBe('every 7 days');
+    expect(listed?.effectiveLeadDays).toBe(1);
+    expect(scheduleBody.deferredCards.some((item) => item.id === card.id)).toBe(true);
+    expect(scheduleBody.recurring.some((entry) => entry.card.id === card.id)).toBe(false);
+
+    const rescore = await alexClient.callTool({
+      name: 'request_card_rescore',
+      arguments: { cardId: card.id, note: 'Please score again', agentName: 'MCP Rescore' },
+    });
+    const rescored = parseToolText<{ card: Card }>(rescore).card;
+    expect(rescored.priorityScore).toBeNull();
+    expect(rescored.priorityReason).toBeNull();
+    expect(rescored.pinned).toBe(true);
+
+    const events = await db.collection('events').where('cardId', '==', card.id).get();
+    expect(events.docs.some((doc) => doc.data().type === 'card.rescore_requested')).toBe(false);
+
+    const activity = await alexClient.callTool({
+      name: 'get_activity',
+      arguments: { cardId: card.id },
+    });
+    const rescoreActivity = parseToolText<{ activity: Activity[] }>(activity).activity.find(
+      (entry) => entry.action === 'card.rescore_requested',
+    );
+    expect(rescoreActivity?.actorType).toBe('agent');
+    expect(rescoreActivity?.note).toBe('Please score again');
+
+    await alexClient.close();
   });
 });

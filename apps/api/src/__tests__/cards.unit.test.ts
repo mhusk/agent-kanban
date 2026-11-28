@@ -41,7 +41,7 @@ function makeCard(overrides: Partial<Card> & { id: string }): Card {
 }
 
 describe('Card handler & service unit tests', () => {
-  it('sorts todo cards by priorityScore DESC (nulls last), due ASC (nulls last), then createdAt ASC', () => {
+  it('sorts todo cards pinned first, then priorityScore DESC (nulls last), due ASC (nulls last), then createdAt ASC', () => {
     const cards = [
       makeCard({
         id: 'c-unscored-late',
@@ -85,10 +85,34 @@ describe('Card handler & service unit tests', () => {
         due: null,
         createdAt: '2026-05-01T07:00:00.000Z',
       }),
+      makeCard({
+        id: 'c-pinned-score-10',
+        pinned: true,
+        priorityScore: 10,
+        due: '2026-05-06T12:00:00.000Z',
+        createdAt: '2026-05-02T09:00:00.000Z',
+      }),
+      makeCard({
+        id: 'c-pinned-unscored',
+        pinned: true,
+        priorityScore: null,
+        due: null,
+        createdAt: '2026-05-02T10:00:00.000Z',
+      }),
+      makeCard({
+        id: 'c-score-100',
+        pinned: false,
+        priorityScore: 100,
+        due: null,
+        createdAt: '2026-05-01T06:00:00.000Z',
+      }),
     ];
 
     const sortedIds = [...cards].sort(compareTodoCards).map((c) => c.id);
     expect(sortedIds).toEqual([
+      'c-pinned-score-10',
+      'c-pinned-unscored',
+      'c-score-100',
       'c-score-95',
       'c-score-80-a',
       'c-score-80-b',
