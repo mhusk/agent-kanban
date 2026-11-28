@@ -52,6 +52,18 @@ function readStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string');
 }
 
+/**
+ * Single-card events store `payload.status`. `cards.bulk_updated` stores
+ * `payload.statuses` for every card in the visibility group.
+ */
+function readEventStatuses(payload: Record<string, unknown>): string[] {
+  const fromList = readStringArray(payload.statuses);
+  if (fromList.length > 0) {
+    return fromList;
+  }
+  return typeof payload.status === 'string' ? [payload.status] : [];
+}
+
 function intersects(a: readonly string[], b: readonly string[]): boolean {
   if (a.length === 0 || b.length === 0) {
     return false;
@@ -106,13 +118,9 @@ export function matchesSubscription(
   }
 
   if (filters.statuses && filters.statuses.length > 0) {
-    const eventStatus = typeof event.payload.status === 'string' ? event.payload.status : null;
-    if (
-      eventStatus === null ||
-      !filters.statuses.includes(
-        eventStatus as Subscription['filters']['statuses'] extends Array<infer T> ? T : never,
-      )
-    ) {
+    const eventStatuses = readEventStatuses(event.payload);
+    const allowed = new Set<string>(filters.statuses);
+    if (!eventStatuses.some((status) => allowed.has(status))) {
       return false;
     }
   }

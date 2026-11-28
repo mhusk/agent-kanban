@@ -129,6 +129,59 @@ describe('Webhook filter matcher & HMAC signing', () => {
     ).toBe(false);
   });
 
+  it('matches cards.bulk_updated on tags, statuses, and assignedUserIds arrays', () => {
+    const bulkEvent: Event = {
+      ...BASE_EVENT,
+      type: 'cards.bulk_updated',
+      cardId: null,
+      visibleToUserIds: ['user-alex', 'user-sam'],
+      payload: {
+        cardIds: ['card-1', 'card-2'],
+        count: 2,
+        tags: ['Groceries', 'Urgent'],
+        statuses: ['todo', 'doing'],
+        assignedUserIds: ['user-alex', 'user-sam'],
+        actionSummary: 'updated',
+        rescoreRequested: true,
+      },
+    };
+
+    expect(
+      matchesSubscription(bulkEvent, {
+        ...BASE_SUB,
+        ownerUserId: 'user-sam',
+        filters: {
+          eventTypes: ['cards.bulk_updated'],
+          tags: ['groceries'],
+          statuses: ['doing'],
+          assignedUserIds: ['user-sam'],
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      matchesSubscription(bulkEvent, {
+        ...BASE_SUB,
+        filters: { eventTypes: ['cards.bulk_updated'], statuses: ['done'] },
+      }),
+    ).toBe(false);
+
+    expect(
+      matchesSubscription(bulkEvent, {
+        ...BASE_SUB,
+        filters: { eventTypes: ['cards.bulk_updated'], tags: ['finance'] },
+      }),
+    ).toBe(false);
+
+    expect(
+      matchesSubscription(bulkEvent, {
+        ...BASE_SUB,
+        ownerUserId: 'user-sam',
+        filters: { eventTypes: ['cards.bulk_updated'], assignedUserIds: ['user-other'] },
+      }),
+    ).toBe(false);
+  });
+
   it('computes t=<ts>,v1=<hex> HMAC-SHA256 signatures deterministically', () => {
     const secret = 'test-hmac-secret-value';
     const ts = '1780315200';

@@ -28,6 +28,7 @@
     "test:checklists-search": "vitest run tests/checklists-search.test.ts",
     "test:comments-recurrence": "vitest run tests/comments-recurrence.test.ts",
     "test:prioritization": "vitest run tests/prioritization.test.ts",
+    "test:bulk": "vitest run tests/bulk-safety.test.ts",
     "test:mcp": "vitest run tests/mcp.test.ts",
     "test:tags": "vitest run tests/tags.test.ts",
     "test:events": "vitest run tests/events.test.ts",

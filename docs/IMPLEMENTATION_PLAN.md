@@ -91,7 +91,7 @@ These decisions resolve all implementation details beyond `docs/PRD.md`:
 - [x] **M6.4** — PWA 5th `Schedule` tab (`Upcoming` timeline + `All Recurring` master list + snoozed cards), recurrence `leadDays` editor, Pin & Request AI Rescore UI
 
 ### Milestone 7: Multi-Select & Hardened Bulk Actions (v1.1)
-- [ ] **M7.1** — Hardened bulk API & MCP: assignees/`deferUntil`/`pinned`/`rescoreRequested`, recurring-safe `POST /api/cards/bulk/complete` & visibility-grouped `cards.bulk_updated` batch events
+- [x] **M7.1** — Hardened bulk API & MCP: assignees/`deferUntil`/`pinned`/`rescoreRequested`, recurring-safe `POST /api/cards/bulk/complete` & visibility-grouped `cards.bulk_updated` batch events
 - [ ] **M7.2** — PWA Multi-Select (desktop hover/`Shift+Click`, mobile `Select` mode) & sticky Bulk Action Bar across all board views
 
 ### Milestone 8: Trello-Inspired Desktop Shortcuts, Quick-Edit Popovers & `Cmd+K` Command Palette (v1.1)
@@ -1092,7 +1092,7 @@ pnpm hygiene:check
 
 ## Milestone 7: Multi-Select & Hardened Bulk Actions (v1.1)
 
-### - [ ] Step M7.1: Hardened bulk API & MCP — assignees/`deferUntil`/`pinned`/`rescoreRequested`, recurring-safe bulk complete & visibility-grouped batch events
+### - [x] Step M7.1: Hardened bulk API & MCP — assignees/`deferUntil`/`pinned`/`rescoreRequested`, recurring-safe bulk complete & visibility-grouped batch events
 
 **Goal:** Make multi-card human and agent bulk operations safe against webhook storms, visibility leaks, and accidental recurring-card breakage.
 

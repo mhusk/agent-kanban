@@ -299,6 +299,15 @@ export const BulkCardUpdateItemSchema = z.object({
   dueFirm: z.boolean().optional(),
   dueHasTime: z.boolean().optional(),
   archived: z.boolean().optional(),
+  assignedUserIds: z.array(EntityIdSchema).optional(),
+  addAssignedUserIds: z.array(EntityIdSchema).optional(),
+  removeAssignedUserIds: z.array(EntityIdSchema).optional(),
+  awareUserIds: z.array(EntityIdSchema).optional(),
+  addAwareUserIds: z.array(EntityIdSchema).optional(),
+  removeAwareUserIds: z.array(EntityIdSchema).optional(),
+  deferUntil: IsoDateTimeSchema.nullable().optional(),
+  pinned: z.boolean().optional(),
+  rescoreRequested: z.boolean().optional(),
 });
 export type BulkCardUpdateItem = z.infer<typeof BulkCardUpdateItemSchema>;
 
@@ -307,6 +316,12 @@ export const BulkCardUpdateSchema = z.object({
   note: NoteSchema.optional(),
 });
 export type BulkCardUpdate = z.infer<typeof BulkCardUpdateSchema>;
+
+export const BulkCompleteCardsSchema = z.object({
+  cardIds: z.array(EntityIdSchema).min(1).max(200),
+  note: NoteSchema.optional(),
+});
+export type BulkCompleteCards = z.infer<typeof BulkCompleteCardsSchema>;
 
 export const SmartQueryTypeSchema = z.enum([
   'overdue_or_due_within_days',

@@ -1,10 +1,13 @@
 import {
   BulkCardUpdateSchema,
+  BulkCompleteCardsSchema,
   BulkPriorityUpdateSchema,
   CardSchema,
   CommentSchema,
   SmartQueryInputSchema,
   UserSchema,
+  computeNextDueDate,
+  computeRecurrenceDeferUntil,
   isCardDeferred,
   isDueSoon,
   isOverdue,
@@ -13,6 +16,7 @@ import {
   projectNextOccurrences,
   resolveEffectiveDueInstant,
   type Card,
+  type Checklist,
   type Comment,
   type SmartQueryType,
   type User,
@@ -25,13 +29,14 @@ import {
   computeFieldDiff,
   writeActivityInTransaction,
 } from '../services/activity.js';
-import { writeEventInTransaction } from '../services/events.js';
+import { writeBulkEventsInTransaction, writeEventInTransaction } from '../services/events.js';
 import { runIdempotentTransaction } from '../services/idempotency.js';
 import type { AuthContext } from '../types/express.js';
 import {
   assertCardVisible,
   compareTodoCards,
   compareUpdatedDesc,
+  dedupeStrings,
   nextMonotonicIso,
   parseStoredCard,
   type CompleteCardHandlerDeps,
@@ -46,7 +51,44 @@ const BULK_TRACKED_DIFF_FIELDS = [
   'dueFirm',
   'dueHasTime',
   'archived',
+  'assignedUserIds',
+  'awareUserIds',
+  'visibleToUserIds',
+  'pinned',
+  'deferUntil',
+  'priorityScore',
+  'priorityReason',
 ] as const;
+
+const RECURRING_BULK_DONE_MESSAGE =
+  'Recurring cards cannot be marked done with PATCH /api/cards/bulk. Use POST /api/cards/bulk/complete.';
+
+function applyMembershipDelta(
+  existing: readonly string[],
+  replace: readonly string[] | undefined,
+  add: readonly string[] | undefined,
+  remove: readonly string[] | undefined,
+): string[] {
+  let next = replace !== undefined ? dedupeStrings(replace) : [...existing];
+  if (add !== undefined && add.length > 0) {
+    next = dedupeStrings([...next, ...add]);
+  }
+  if (remove !== undefined && remove.length > 0) {
+    const removeSet = new Set(remove);
+    next = next.filter((id) => !removeSet.has(id));
+  }
+  return next;
+}
+
+function latestIso(timestamps: readonly string[]): string {
+  let latest = timestamps[0] ?? new Date().toISOString();
+  for (const timestamp of timestamps) {
+    if (timestamp > latest) {
+      latest = timestamp;
+    }
+  }
+  return latest;
+}
 
 function assertUniqueCardIds(cardIds: readonly string[]): void {
   const seen = new Set<string>();
@@ -164,13 +206,20 @@ export async function bulkUpdateCardsHandler(
         ),
       );
 
-      const updatedCards: Card[] = [];
+      const plans: Array<{
+        nextCard: Card;
+        nowIso: string;
+        rescoreRequested: boolean;
+      }> = [];
 
       for (let i = 0; i < input.updates.length; i += 1) {
         const update = input.updates[i]!;
         const existing = existingCards[i]!;
-        const cardRef = cardRefs[i]!;
         const nowIso = nextMonotonicIso(existing.updatedAt, now);
+
+        if (update.status === 'done' && existing.recurrence !== null) {
+          throw new AppError(400, 'VALIDATION_ERROR', RECURRING_BULK_DONE_MESSAGE);
+        }
 
         const status = update.status ?? existing.status;
         const touchesTags =
@@ -189,19 +238,48 @@ export async function bulkUpdateCardsHandler(
           tags = normalizeTags(tags);
         }
 
+        const assignedUserIds = applyMembershipDelta(
+          existing.assignedUserIds,
+          update.assignedUserIds,
+          update.addAssignedUserIds,
+          update.removeAssignedUserIds,
+        );
+        const awareUserIds = applyMembershipDelta(
+          existing.awareUserIds,
+          update.awareUserIds,
+          update.addAwareUserIds,
+          update.removeAwareUserIds,
+        );
+        const visibleToUserIds = dedupeStrings([...assignedUserIds, ...awareUserIds]);
+        if (visibleToUserIds.length === 0) {
+          throw new AppError(
+            400,
+            'VALIDATION_ERROR',
+            'At least one assigned or aware user is required for card visibility',
+          );
+        }
+
         const dueChanged =
           (update.due !== undefined && update.due !== existing.due) ||
           (update.dueHasTime !== undefined && update.dueHasTime !== existing.dueHasTime);
         const due = update.due !== undefined ? update.due : existing.due;
+        const rescoreRequested = update.rescoreRequested === true;
 
         const nextCard = CardSchema.parse({
           ...existing,
           status,
           tags,
+          assignedUserIds,
+          awareUserIds,
+          visibleToUserIds,
           due,
           dueFirm: update.dueFirm !== undefined ? update.dueFirm : existing.dueFirm,
           dueHasTime: update.dueHasTime !== undefined ? update.dueHasTime : existing.dueHasTime,
           archived: update.archived !== undefined ? update.archived : existing.archived,
+          pinned: update.pinned !== undefined ? update.pinned : existing.pinned,
+          deferUntil: update.deferUntil !== undefined ? update.deferUntil : existing.deferUntil,
+          priorityScore: rescoreRequested ? null : existing.priorityScore,
+          priorityReason: rescoreRequested ? null : existing.priorityReason,
           enteredStatusAt: status !== existing.status ? nowIso : existing.enteredStatusAt,
           lastTouchedAt: nowIso,
           updatedAt: nowIso,
@@ -209,33 +287,233 @@ export async function bulkUpdateCardsHandler(
           overdueNotifiedAt: dueChanged ? null : existing.overdueNotifiedAt,
         });
 
-        const diff = computeFieldDiff(existing, nextCard, BULK_TRACKED_DIFF_FIELDS);
+        plans.push({ nextCard, nowIso, rescoreRequested });
+      }
+
+      const updatedCards: Card[] = [];
+      for (let i = 0; i < plans.length; i += 1) {
+        const plan = plans[i]!;
+        const existing = existingCards[i]!;
+        const cardRef = cardRefs[i]!;
+        const diff = computeFieldDiff(existing, plan.nextCard, BULK_TRACKED_DIFF_FIELDS);
         const activity = buildActivityEntry({
-          cardId: nextCard.id,
-          visibleToUserIds: nextCard.visibleToUserIds,
+          cardId: plan.nextCard.id,
+          visibleToUserIds: plan.nextCard.visibleToUserIds,
           auth,
           action: 'card.updated',
           diff,
           note: input.note ?? null,
-          createdAt: nowIso,
+          createdAt: plan.nowIso,
         });
 
-        tx.set(cardRef, nextCard);
+        tx.set(cardRef, plan.nextCard);
         writeActivityInTransaction(tx, db, activity);
-        writeEventInTransaction(tx, db, {
-          type: 'card.updated',
-          card: nextCard,
-          auth,
-          payload: { diff },
-          note: input.note ?? null,
-          createdAt: nowIso,
-        });
-        updatedCards.push(nextCard);
+        updatedCards.push(plan.nextCard);
       }
+
+      writeBulkEventsInTransaction(tx, db, {
+        cards: updatedCards,
+        auth,
+        actionSummary: 'updated',
+        rescoreRequestedCardIds: plans
+          .filter((plan) => plan.rescoreRequested)
+          .map((plan) => plan.nextCard.id),
+        note: input.note ?? null,
+        createdAt: latestIso(plans.map((plan) => plan.nowIso)),
+      });
 
       return {
         status: 200,
         body: { cards: updatedCards },
+      };
+    },
+  });
+}
+
+interface PlannedCompletion {
+  existing: Card;
+  nextCard: Card;
+  recurringReset: boolean;
+  nowIso: string;
+}
+
+function planBulkCompletion(
+  existing: Card,
+  now: Date,
+  householdTimezone: string,
+): PlannedCompletion {
+  const nowIso = nextMonotonicIso(existing.updatedAt, now);
+
+  if (existing.recurrence === null) {
+    const nextCard = CardSchema.parse({
+      ...existing,
+      status: 'done',
+      pinned: false,
+      deferUntil: null,
+      lastCompletedAt: nowIso,
+      enteredStatusAt: existing.status !== 'done' ? nowIso : existing.enteredStatusAt,
+      lastTouchedAt: nowIso,
+      updatedAt: nowIso,
+    });
+    return { existing, nextCard, recurringReset: false, nowIso };
+  }
+
+  let nextDue: string;
+  try {
+    nextDue = computeNextDueDate(existing.recurrence, nowIso, existing.due, householdTimezone, {
+      dueHasTime: existing.dueHasTime,
+    });
+  } catch (error) {
+    throw new AppError(
+      400,
+      'INVALID_RECURRENCE',
+      error instanceof Error ? error.message : 'Invalid card recurrence rule',
+    );
+  }
+
+  let deferUntil: string | null;
+  try {
+    deferUntil = computeRecurrenceDeferUntil(
+      existing.recurrence,
+      nextDue,
+      nowIso,
+      householdTimezone,
+      { dueHasTime: existing.dueHasTime },
+    );
+  } catch (error) {
+    throw new AppError(
+      400,
+      'INVALID_RECURRENCE',
+      error instanceof Error ? error.message : 'Invalid card recurrence rule',
+    );
+  }
+
+  const resetChecklists: Checklist[] = existing.checklists.map((checklist) => ({
+    ...checklist,
+    items: checklist.items.map((item) => ({
+      ...item,
+      checked: false,
+    })),
+  }));
+
+  const nextCard = CardSchema.parse({
+    ...existing,
+    status: 'todo',
+    due: nextDue,
+    checklists: resetChecklists,
+    priorityScore: null,
+    priorityReason: null,
+    pinned: false,
+    deferUntil,
+    lastCompletedAt: nowIso,
+    dueSoonNotifiedAt: null,
+    overdueNotifiedAt: null,
+    enteredStatusAt: nowIso,
+    lastTouchedAt: nowIso,
+    updatedAt: nowIso,
+  });
+
+  return { existing, nextCard, recurringReset: true, nowIso };
+}
+
+export async function bulkCompleteCardsHandler(
+  auth: AuthContext,
+  rawInput: unknown,
+  options: CreateCardHandlerOptions & { householdTimezone?: string } = {},
+): Promise<{
+  status: number;
+  body: { cards: Card[]; completedCardIds: string[]; recurringResetCardIds: string[] };
+  replayed: boolean;
+}> {
+  const input = parseWithSchema(BulkCompleteCardsSchema, rawInput, 'Invalid bulk complete payload');
+  assertUniqueCardIds(input.cardIds);
+
+  const db = options.db ?? getDb();
+  const now = (options.now ?? (() => new Date()))();
+  const householdTimezone = options.householdTimezone ?? getConfig().householdTimezone;
+
+  return runIdempotentTransaction(db, {
+    scope: 'cards.bulk_complete',
+    ownerUserId: auth.ownerUserId,
+    idempotencyKey: options.idempotencyKey,
+    now,
+    execute: async (tx) => {
+      const cardRefs = input.cardIds.map((cardId) => db.collection('cards').doc(cardId));
+      const snaps = await Promise.all(cardRefs.map((ref) => tx.get(ref)));
+      const existingCards = snaps.map((snap) =>
+        assertCardVisible(
+          snap.exists ? parseStoredCard(snap.id, snap.data() ?? {}) : null,
+          auth.ownerUserId,
+        ),
+      );
+
+      const plans = existingCards.map((existing) =>
+        planBulkCompletion(existing, now, householdTimezone),
+      );
+      const updatedCards: Card[] = [];
+      const completedCardIds: string[] = [];
+      const recurringResetCardIds: string[] = [];
+
+      for (let i = 0; i < plans.length; i += 1) {
+        const plan = plans[i]!;
+        const cardRef = cardRefs[i]!;
+        const diff = plan.recurringReset
+          ? computeFieldDiff(plan.existing, plan.nextCard, [
+              'status',
+              'due',
+              'priorityScore',
+              'priorityReason',
+              'checklists',
+              'pinned',
+              'deferUntil',
+              'lastCompletedAt',
+            ])
+          : computeFieldDiff(plan.existing, plan.nextCard, [
+              'status',
+              'pinned',
+              'deferUntil',
+              'lastCompletedAt',
+            ]);
+        if (plan.recurringReset) {
+          diff.due = {
+            from: plan.existing.due,
+            to: plan.nextCard.due,
+          };
+        }
+
+        const activity = buildActivityEntry({
+          cardId: plan.nextCard.id,
+          visibleToUserIds: plan.nextCard.visibleToUserIds,
+          auth,
+          action: 'card.completed',
+          diff,
+          note: input.note ?? null,
+          createdAt: plan.nowIso,
+        });
+
+        tx.set(cardRef, plan.nextCard);
+        writeActivityInTransaction(tx, db, activity);
+        updatedCards.push(plan.nextCard);
+        if (plan.recurringReset) {
+          recurringResetCardIds.push(plan.nextCard.id);
+        } else {
+          completedCardIds.push(plan.nextCard.id);
+        }
+      }
+
+      writeBulkEventsInTransaction(tx, db, {
+        cards: updatedCards,
+        auth,
+        actionSummary: 'completed',
+        completedCardIds,
+        recurringResetCardIds,
+        note: input.note ?? null,
+        createdAt: latestIso(plans.map((plan) => plan.nowIso)),
+      });
+
+      return {
+        status: 200,
+        body: { cards: updatedCards, completedCardIds, recurringResetCardIds },
       };
     },
   });

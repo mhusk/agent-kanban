@@ -36,6 +36,7 @@ import {
 } from '../handlers/checklists.js';
 import { createCardCommentHandler, listCardCommentsHandler } from '../handlers/comments.js';
 import {
+  bulkCompleteCardsHandler,
   bulkUpdateCardsHandler,
   bulkUpdatePrioritiesHandler,
   smartQueryCardsHandler,
@@ -174,6 +175,30 @@ export function createCardsRouter(configOverride?: AppConfig): Router {
       }
     })();
   });
+
+  router.post(
+    '/cards/bulk/complete',
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      void (async () => {
+        try {
+          const auth = requireReqAuth(req);
+          const idempotencyKey = normalizeIdempotencyKey(req.header('idempotency-key'));
+          const householdTimezone = (configOverride ?? getConfig()).householdTimezone;
+          const result = await bulkCompleteCardsHandler(auth, req.body, {
+            idempotencyKey,
+            householdTimezone,
+          });
+          if (result.replayed) {
+            res.setHeader('X-Idempotent-Replay', 'true');
+          }
+          res.status(result.status).json(result.body);
+        } catch (error) {
+          next(error);
+        }
+      })();
+    },
+  );
 
   router.get(
     '/workspace/snapshot',

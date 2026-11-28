@@ -7,6 +7,7 @@ import {
   ArchiveCardInputSchema,
   AttachmentSchema,
   BulkCardUpdateSchema,
+  BulkCompleteCardsSchema,
   BulkPriorityUpdateSchema,
   CardSchema,
   CardStatusSchema,
@@ -361,6 +362,40 @@ describe('Card, Checklist, Link, Recurrence & Bulk schemas', () => {
       addTags: ['home'],
       removeTags: ['errands'],
     });
+
+    const hardened = BulkCardUpdateSchema.parse({
+      updates: [
+        {
+          cardId: 'card_01',
+          assignedUserIds: ['user_alex'],
+          addAssignedUserIds: ['user_sam'],
+          removeAssignedUserIds: ['user_old'],
+          awareUserIds: ['user_sam'],
+          addAwareUserIds: ['user_alex'],
+          removeAwareUserIds: ['user_old'],
+          deferUntil: NOW,
+          pinned: true,
+          rescoreRequested: true,
+        },
+      ],
+    });
+    expect(hardened.updates[0]).toMatchObject({
+      assignedUserIds: ['user_alex'],
+      addAssignedUserIds: ['user_sam'],
+      deferUntil: NOW,
+      pinned: true,
+      rescoreRequested: true,
+    });
+    expect(
+      BulkCardUpdateSchema.safeParse({ updates: [{ cardId: 'card_01', pinned: 'yes' }] }).success,
+    ).toBe(false);
+
+    const bulkComplete = BulkCompleteCardsSchema.parse({
+      cardIds: ['card_01', 'card_02'],
+      note: 'Done for the week',
+    });
+    expect(bulkComplete.cardIds).toEqual(['card_01', 'card_02']);
+    expect(BulkCompleteCardsSchema.safeParse({ cardIds: [] }).success).toBe(false);
 
     const rename = RenameTagInputSchema.parse({
       fromTag: '  Groceries ',

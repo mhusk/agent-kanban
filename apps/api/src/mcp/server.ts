@@ -45,6 +45,7 @@ import {
 import { createCardCommentHandler } from '../handlers/comments.js';
 import { listEventsHandler } from '../handlers/events.js';
 import {
+  bulkCompleteCardsHandler,
   bulkUpdateCardsHandler,
   bulkUpdatePrioritiesHandler,
   smartQueryCardsHandler,
@@ -466,7 +467,7 @@ export function createMcpServer(
     'bulk_update_cards',
     {
       description:
-        'Atomically update status, tags, due dates, or archive flags across visible cards.',
+        'Atomically update status, tags, due, archive, assignees, deferUntil, pinned, or rescore across visible cards. Recurring cards cannot be set to done; use bulk_complete_cards.',
       inputSchema: {
         updates: z.array(BulkCardUpdateItemSchema).min(1).max(200),
         idempotencyKey: z.string().optional(),
@@ -477,6 +478,28 @@ export function createMcpServer(
     async ({ idempotencyKey, agentName, ...body }) =>
       runTool(async () => {
         const res = await bulkUpdateCardsHandler(agentAuth(agentName), body, { idempotencyKey });
+        return { ...res.body, replayed: res.replayed };
+      }),
+  );
+
+  server.registerTool(
+    'bulk_complete_cards',
+    {
+      description:
+        'Atomically complete visible cards. Non-recurring cards are marked done. Recurring cards reset in place with the next due date, unchecked checklists, and auto-defer.',
+      inputSchema: {
+        cardIds: z.array(EntityIdSchema).min(1).max(200),
+        idempotencyKey: z.string().optional(),
+        note: NoteSchema.optional(),
+        agentName: z.string().trim().min(1).max(120).optional(),
+      },
+    },
+    async ({ idempotencyKey, agentName, ...body }) =>
+      runTool(async () => {
+        const res = await bulkCompleteCardsHandler(agentAuth(agentName), body, {
+          idempotencyKey,
+          householdTimezone: options.householdTimezone,
+        });
         return { ...res.body, replayed: res.replayed };
       }),
   );

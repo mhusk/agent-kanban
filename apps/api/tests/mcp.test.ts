@@ -127,12 +127,12 @@ describe('Stateless Streamable HTTP /mcp & RFC 9728 OAuth metadata (Emulator)', 
     expect(deleteRes.status).toBe(405);
   });
 
-  it('authenticates via JWT (OAuth path) and API key, lists 23 tools, enforces visibility, and stamps actorType: agent', async () => {
+  it('authenticates via JWT (OAuth path) and API key, lists 24 tools, enforces visibility, and stamps actorType: agent', async () => {
     // 1. JWT path (Alex)
     const alexClient = await connectMcpClient(alexToken);
     const toolsList = await alexClient.listTools();
     const toolNames = toolsList.tools.map((t) => t.name);
-    expect(toolNames).toHaveLength(23);
+    expect(toolNames).toHaveLength(24);
     for (const expected of [
       'list_cards',
       'list_recurring_cards',
@@ -151,6 +151,7 @@ describe('Stateless Streamable HTTP /mcp & RFC 9728 OAuth metadata (Emulator)', 
       'archive_card',
       'bulk_update_priorities',
       'bulk_update_cards',
+      'bulk_complete_cards',
       'add_comment',
       'manage_checklist',
       'toggle_checklist_item',
